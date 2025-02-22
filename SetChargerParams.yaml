@@ -1,0 +1,75 @@
+alias: Set EV charging parameter
+sequence:
+  - variables:
+      finalcurrent: |-
+        {% if current < 6 %}
+          0
+        {% else %}
+          {{ current }}
+        {% endif %}
+  - alias: Set phases
+    if:
+      - alias: If phase change
+        condition: template
+        value_template: >-
+          {{ phase != states('select.alfen_eve_installation_max_allowed_phases')
+          }}
+    then:
+      - action: select.select_option
+        metadata: {}
+        data:
+          option: "{{ phase }}"
+        target:
+          entity_id: select.alfen_eve_installation_max_allowed_phases
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
+        enabled: true
+  - alias: Set current
+    if:
+      - condition: template
+        value_template: >-
+          {{ finalcurrent | int !=
+          states('number.alfen_eve_power_connector_max_current_socket_1') }}
+        enabled: true
+      - alias: If current change
+        condition: template
+        value_template: "{{ finalcurrent | int != states('input_number.chargecurrent') | int }}"
+        enabled: false
+    then:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: "{{ finalcurrent }}"
+        target:
+          entity_id: number.alfen_eve_power_connector_max_current_socket_1
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
+        enabled: true
+description: ""
+icon: mdi:ev-station
+fields:
+  phase:
+    selector:
+      select:
+        options:
+          - 1 Phase
+          - 3 Phases
+        multiple: false
+    name: phase
+    required: false
+    description: EV charging phase [1 Phase, 3 Phases]
+    default: 1 Phase
+  current:
+    selector:
+      number:
+        min: 0
+        max: 16
+        step: 1
+    name: current
+    required: true
+    default: 6
+    description: EV charging current

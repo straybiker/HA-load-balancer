@@ -18,7 +18,7 @@ The current script also checks the accu state of a BMW. When forecasted accu sta
 ## Prerequisites
 - Home Assistant HACS Alfen Wallbox integration: https://github.com/leeyuentuen/alfen_wallbox
 - Home Assistant BMW Connected drive integration: https://www.home-assistant.io/integrations/bmw_connected_drive
-- Helpers (See :
+- Helpers. See [Configuration](https://github.com/straybiker/HA-load-balancer/blob/main/README.md#configuration) for more details on how to use these:
   - Input number: maximum total power limit
   - Input number: overcharge limit for when the minimum car charge is not reached
   - Input select to select looad balacing mode [Off, Minimal 1.4kW, Minimal 4kW, Eco, Fast]

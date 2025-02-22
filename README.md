@@ -65,7 +65,7 @@ The loading behavior can be adjust by in input select:
 - Eco: load balance based on the available rest power
 - Fast: Always load at 3 phases, 16A
 
-## Configuration
+## Configuration and helpers
 Update the following variables in the script with your own helpers and sensors
 
 | Variable | Unit | Type | Description |
@@ -79,6 +79,20 @@ Update the following variables in the script with your own helpers and sensors
 | soc_threshold | % | input number helper | Required battery % to reach at a set time. If not, overcharge to extended_power_limit |
 | charger_efficiency | % | input number helper | sometimes the charger output is less then the theoretical output. This value can compensate this loss. Note: this output efficiency seems to vary so using this push your power consumption over max_combined_power and extended_power_limit |
 | target_time | date time | datetime input helper | Time at which soc_threshold should be reached. Not this is not a variable but in the calculation of time_until_target_time |
+
+![Image](https://github.com/user-attachments/assets/9ebd9154-5a44-45b6-ae89-c8545ebcd0fa)
+
+![Image](https://github.com/user-attachments/assets/2717a963-ad2c-469a-9077-8368c776afb6)
+
+![Image](https://github.com/user-attachments/assets/b347021d-229c-4a7d-8682-5a99f5f9c4f6)
+
+![Image](https://github.com/user-attachments/assets/e263175f-1407-45e9-b684-dfdd1172b7c7)
+
+![Image](https://github.com/user-attachments/assets/73853bbc-1ff1-494f-b80a-216cd31b3291)
+
+![Image](https://github.com/user-attachments/assets/93a0863c-7ad4-4ee5-bc11-36dc61b7e0e3)
+
+![Image](https://github.com/user-attachments/assets/cf492018-cf80-4fbe-bc1d-b0f54fee5580)
 
 
 ## Future developments

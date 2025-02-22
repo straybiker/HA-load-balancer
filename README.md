@@ -1,12 +1,12 @@
 # HA-load-balancer
 Power load balancer for Home Assistant tailered to Belgium energy regulation.
 
-This is not an integration (yet), just home assistant yaml files to use in automations and scripts 
+## Introduction
+This is not an integration (yet), just home assistant yaml files to use in automations and scripts.
 
-This load balancer checkes every 10 seconds the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total power to use, household + EV charger, is defined in an input helper parameter.
+This load balancer checkes the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total power to use, household + EV charger, is limited by a parameter.
 This load balancer uses 3 phase power and a max current of 16A.
 The current script also checks the accu state of a BMW. When forecasted accu state doesn't reach a minimum charge by a set time, the charger can override the maximum power to a second limit. 
-
 
 ## Installation
 - Create a new automation and paste the yaml code of LoadbalanceEVCharger.yamlinto it
@@ -27,3 +27,31 @@ The current script also checks the accu state of a BMW. When forecasted accu sta
 
 ## Tips
 Since household power consumption can be scattery, best to pass it first trough a low pass filter.
+My filter looks like this in the configuration.yaml:
+```
+  - platform: filter
+    name: "Netto verbruik huis LP"
+    unique_id: netto_verbruik_huis_lp
+    entity_id: sensor.netto_verbruik_huis
+    filters:
+      - filter: outlier
+        window_size: 4
+        radius: 500.0
+      - filter: lowpass
+        time_constant: 12
+        precision: 2
+```
+
+## Details
+This load balancer checkes every 10 seconds the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total power to use, household + EV charger, is defined in an input helper parameter.
+This load balancer uses 3 phase power and a max current of 16A.
+The current script also checks the accu state of a BMW. When forecasted accu state doesn't reach a minimum charge by a set time, the charger can override the maximum power to a second limit. If the threshold is reached, charging will just continue until the car stops the session.
+
+When the remaining power is not enough to reach 1 phae, 6A, charging stops. There is a risk with this that the car is not charged for a prolonged period if household power consumption is high.
+
+The loading behavior can be adjust by in input select:
+- Off: No not load
+- Minimal 1.4kW: Always load 1 phase 6A
+- Minimal 4kW: Always load 3 phases 6A
+- Eco: load balance based on the available rest power
+- Fast: Always load at 3 phases, 16A

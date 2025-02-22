@@ -26,26 +26,34 @@ The current script also checks the accu state of a BMW. When forecasted accu sta
 - Sensor: Current household power consumption. Since I don't have a digital meter yet, but this is a test to prepare for the digital meter, I use a Shelly Pro3EM to measure household power consumption.
 
 ## Tips
-Since household power consumption can be scattery, best to pass it first trough a low pass filter.
+Since household power consumption can be scattery, best to pass it first trough a low pass filter. https://www.home-assistant.io/integrations/filter/#low-pass
 My filter looks like this in the configuration.yaml:
 ```
-  - platform: filter
-    name: "Netto verbruik huis LP"
-    unique_id: netto_verbruik_huis_lp
-    entity_id: sensor.netto_verbruik_huis
-    filters:
-      - filter: outlier
-        window_size: 4
-        radius: 500.0
-      - filter: lowpass
-        time_constant: 12
-        precision: 2
+platform: filter
+name: "Netto verbruik huis LP"
+unique_id: netto_verbruik_huis_lp
+entity_id: sensor.netto_verbruik_huis
+filters:
+  - filter: outlier
+    window_size: 4
+    radius: 500.0
+  - filter: lowpass
+    time_constant: 12
+    precision: 2
 ```
+sensor.netto_verbruik_huis is the raw household power consuption, netto_verbruik_huis_lp is used by the load balancer.
+
+Create a script to set the charger parameters to a disered phase and current when you disconnect the cable from the car. This way you shouldn't end up with a charger that is set to 0A when home assistant is not available. There is still a risk if home assistant becomes unavailable during charging with the charger set at 0A. Then you need the alfen app or ACE Service Installer to reset the charger.
 
 ## Details
 This load balancer checkes every 10 seconds the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total power to use, household + EV charger, is defined in an input helper parameter.
 This load balancer uses 3 phase power and a max current of 16A.
-The current script also checks the accu state of a BMW. When forecasted accu state doesn't reach a minimum charge by a set time, the charger can override the maximum power to a second limit. If the threshold is reached, charging will just continue until the car stops the session.
+
+![Power consuption](https://github.com/straybiker/HA-load-balancer/blob/main/doc/powerconsumption.png)
+Red line shows the total power consumption, which is kept steady at 6kW overnight. The small drops are periods that there isn't enough capacity to charge.
+
+The current script also checks the accu state of a BMW. When forecasted accu state doesn't reach a minimum charge by a set time, the charger can override the maximum power to a second limit. If the threshold is reached, charging will just continue until the car stops the session. For example, I want my car to be 80% charged by 8:00 in the morning. If it cannot reach 80%, some additional power can be consumed. Set both power parameters equal to disable the extra power consumption
+
 
 When the remaining power is not enough to reach 1 phae, 6A, charging stops. There is a risk with this that the car is not charged for a prolonged period if household power consumption is high.
 
@@ -55,3 +63,7 @@ The loading behavior can be adjust by in input select:
 - Minimal 4kW: Always load 3 phases 6A
 - Eco: load balance based on the available rest power
 - Fast: Always load at 3 phases, 16A
+
+## Future developments
+Testing: adjust the power limit dynamically with the monthly capacity peak. If you went over your inital setting, you may just as well consume this amount of power the rest of the month.
+Todo: make dependency on my car optional, so others when another car charges, it is not depending on my car. 

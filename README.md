@@ -100,3 +100,6 @@ Testing: adjust the power limit dynamically with the monthly capacity peak. If y
 Todo: make dependency on the car batttery percentage optional, so others when another car charges, it is not depending on my car. 
 
 Maybe: option to limit to 1 phase in Eco mode
+
+## Disclamer
+The use of this automation is at own risk! I take no responsabilty for the outcome of the power consumption or any damages that may come from using this automation.

@@ -56,7 +56,7 @@ The current script also checks the accu state of a BMW. When forecasted accu sta
 
 When the remaining power is not enough to reach 1 phae, 6A, charging stops. There is a risk with this that the car is not charged for a prolonged period if household power consumption is high.
 >[!Tip]
-> Create a script to set the charger parameters to a disered phase and current when you disconnect the cable from the car. This way you shouldn't end up with a charger that is set to 0A when home assistant is not available. There is still a risk if home assistant becomes unavailable during charging with the charger set at 0A. Then you need the alfen app or ACE Service Installer to reset the charger.
+> Create a script to set the charger parameters to a disered phase and current when you disconnect the cable from the car. This way you shouldn't end up with a charger that is set to 0A when home assistant is not available. There is still a risk if home assistant becomes unavailable during charging with the charger set at 0A. Then you need the alfen app or ACE Service Installer to set the values of the charger.
 
 The loading behavior can be adjust by in input select:
 - Off: No not load

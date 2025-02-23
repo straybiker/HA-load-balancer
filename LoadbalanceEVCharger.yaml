@@ -10,7 +10,9 @@ triggers:
 conditions:
   - alias: Car is connected
     condition: template
-    value_template: "{{ states('sensor.alfen_eve_status_code_socket_1') != 'Available' }}"
+    value_template: >-
+      {{ states('sensor.alfen_eve_power_state_socket_1') == 'Connected ISO15118'
+      }}
     enabled: true
 actions:
   - variables:
@@ -83,10 +85,6 @@ actions:
             entity_id: input_select.ev_charge_mode
             state: "Off"
         sequence:
-          - variables:
-              adjusted_phase_selection: 1
-              adjusted_current_limit: 0
-            enabled: false
           - action: script.set_pv_charging_parameter
             metadata: {}
             data:
@@ -99,10 +97,6 @@ actions:
             entity_id: input_select.ev_charge_mode
             state: Minimal 1.4kW
         sequence:
-          - variables:
-              adjusted_phase_selection: 1
-              adjusted_current_limit: 6
-            enabled: false
           - action: script.set_pv_charging_parameter
             metadata: {}
             data:
@@ -115,10 +109,6 @@ actions:
             entity_id: input_select.ev_charge_mode
             state: Minimal 4kW
         sequence:
-          - variables:
-              adjusted_phase_selection: 3
-              adjusted_current_limit: 6
-            enabled: false
           - action: script.set_pv_charging_parameter
             metadata: {}
             data:
@@ -131,10 +121,6 @@ actions:
             entity_id: input_select.ev_charge_mode
             state: Fast
         sequence:
-          - variables:
-              adjusted_phase_selection: 3
-              adjusted_current_limit: 16
-            enabled: false
           - action: script.set_pv_charging_parameter
             metadata: {}
             data:

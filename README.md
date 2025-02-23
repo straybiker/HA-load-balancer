@@ -13,7 +13,8 @@ The current script also checks the accu state of a BMW. When forecasted accu sta
 
 ## Installation
 - Create a new automation and paste the yaml code of LoadbalanceEVCharger.yamlinto it
-- Create a new script and past the the yaml code of the SetChargerParams.yaml in it
+- Create a new script and paste the yaml code of the SetChargerParams.yaml in it
+- [Optional] Create a new automation and paste the yaml code of resetCharger.yaml in it
 
 ## Prerequisites
 The load balancer is currently build to used in combination with an Alfen Eve Pro and BMW EV, but can be easily adjusted to use with another charger or car.  
@@ -30,6 +31,8 @@ The load balancer is currently build to used in combination with an Alfen Eve Pr
   - Date time: to set the time the minimum car charge should be reached
 - Sensor: Current household power consumption. Since I don't have a digital meter yet, but this is a test to prepare for the digital meter, I use a Shelly Pro3EM to measure household power consumption.
 
+I assume active load balacing needs to be switched of on the Alfen charger do avoid conflicts. I don't have a license, so running this load balacer in combination with the one from Alfen is untested.
+
 >[!Tip] 
 >Since household power consumption can be scattery, best to pass it first trough a low pass filter. https://www.home-assistant.io/integrations/filter/#low-pass .My filter looks like this in the configuration.yaml:
 >```
@@ -45,7 +48,7 @@ The load balancer is currently build to used in combination with an Alfen Eve Pr
 >    time_constant: 12
 >    precision: 2
 >```
->sensor.netto_verbruik_huis is the raw household power consuption, netto_verbruik_huis_lp is used by the load balancer.
+>sensor.netto_verbruik_huis is the raw household power consuption, netto_verbruik_huis_lp is used by the load balancer. This sensor can become negative if PV panels provide more power then being used by the household.
 
 ## Details
 This load balancer checkes every 10 seconds the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total power to use, household + EV charger, is defined in an input helper parameter.
@@ -57,8 +60,14 @@ Red line shows the total power consumption, which is kept steady at 6kW overnigh
 The current script also checks the accu state of a BMW. When forecasted accu state doesn't reach a minimum charge by a set time, the charger can override the maximum power to a second limit. If the threshold is reached, charging will just continue until the car stops the session. For example, I want my car to be 80% charged by 8:00 in the morning. If it cannot reach 80%, some additional power can be consumed. Set both power parameters equal to disable the extra power consumption
 
 When the remaining power is not enough to reach 1 phae, 6A, charging stops. There is a risk with this that the car is not charged for a prolonged period if household power consumption is high.
->[!Tip]
-> Create a script to set the charger parameters to a disered phase and current when you disconnect the cable from the car. This way you shouldn't end up with a charger that is set to 0A when home assistant is not available. There is still a risk if home assistant becomes unavailable during charging with the charger set at 0A. Then you need the alfen app or ACE Service Installer to set the values of the charger.
+
+>[!NOTE]
+>There is a built in delay in the script when the charger parameters are changed. Since this automation runs every 10 seconds, a warning in the HA log will appear that the automation is already running.
+
+Use the script to set the charger parameters to a disered phase and current when you disconnect the cable from the car. This way you shouldn't end up with a charger that is set to 0A when home assistant is not available.
+
+> [!WARNING]
+> There is still a risk if home assistant becomes unavailable during charging with the charger set at 0A. Then you need the [Eve Connect](https://alfen.com/en-be/eve-connect) app or ACE Service Installer to set the values of the charger.
 
 The loading behavior can be adjust by in input select:
 - Off: Do not load

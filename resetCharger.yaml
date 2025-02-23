@@ -1,0 +1,30 @@
+alias: Reset chargepoint
+description: "Reset the charger phase and current when the car is disconnected to prevent the charger being stuck at low settings when HA becomes unavailable"
+triggers:
+  - trigger: state
+    entity_id:
+      - sensor.alfen_eve_status_code_socket_1
+    to: Available
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+    enabled: false
+  - trigger: state
+    entity_id:
+      - sensor.alfen_eve_power_state_socket_1
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+    to: unknown
+conditions: []
+actions:
+  - action: script.set_pv_charging_parameter
+    metadata: {}
+    data:
+      current: 16
+      phase: 3 Phases
+    target:
+      entity_id: script.set_pv_charging_parameter
+mode: single

@@ -33,10 +33,6 @@ sequence:
           {{ finalcurrent | int !=
           states('number.alfen_eve_power_connector_max_current_socket_1') }}
         enabled: true
-      - alias: If current change
-        condition: template
-        value_template: "{{ finalcurrent | int != states('input_number.chargecurrent') | int }}"
-        enabled: false
     then:
       - action: number.set_value
         metadata: {}

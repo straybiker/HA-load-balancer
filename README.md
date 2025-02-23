@@ -37,12 +37,12 @@ template:
       - name: Alfen Eve Connection State
         unique_id: alfen_eve_connection_state
         state: >
-        {% set m3 = states('sensor.alfen_eve_mode3_state_socket_1') %}
-        {% if m3 in ['STATE_A', 'STATE_E'] %} Disconnected
-        {% elif m3 in ['STATE_B1', 'STATE_B2', 'STATE_C1', 'STATE_D1', 'STATE_C2', 'STATE_D2'] %} Connected
-        {% elif m3 in ['STATE_F'] %} Error
-        {% else %} unavailable
-        {% endif %}
+          {% set m3 = states('sensor.alfen_eve_mode3_state_socket_1') %}
+          {% if m3 in ['STATE_A', 'STATE_E'] %} Disconnected
+          {% elif m3 in ['STATE_B1', 'STATE_B2', 'STATE_C1', 'STATE_D1', 'STATE_C2', 'STATE_D2'] %} Connected
+          {% elif m3 in ['STATE_F'] %} Error
+          {% else %} unavailable
+          {% endif %}
 ```
 
 I assume active load balacing needs to be switched of on the Alfen charger do avoid conflicts. I don't have a license, so running this load balacer in combination with the one from Alfen is untested.

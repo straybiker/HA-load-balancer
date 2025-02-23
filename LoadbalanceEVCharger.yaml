@@ -49,7 +49,6 @@ actions:
         {% else %}
           {{ current }}
         {% endif %}
-      combined_power: "{{ home_power + (current_limit * 230 * phase_selection) }}"
       estimated_battery_percentage: >
         {% set charging_power = (current_limit * 230 * phase_selection) | float
         %}        {% set charging_time = time_until_target_time / 3600 %} {% set

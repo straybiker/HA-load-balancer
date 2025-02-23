@@ -8,12 +8,9 @@ triggers:
       - input_select.ev_charge_mode
       - input_number.ev_load_balancing_power_limit
 conditions:
-  - alias: Car is connected
-    condition: template
-    value_template: >-
-      {{ states('sensor.alfen_eve_power_state_socket_1') == 'Connected ISO15118'
-      }}
-    enabled: true
+  - condition: state
+    entity_id: sensor.alfen_eve_connection_state
+    state: Connected
 actions:
   - variables:
       home_power: "{{ states('sensor.netto_verbruik_huis_lp') | int }}"

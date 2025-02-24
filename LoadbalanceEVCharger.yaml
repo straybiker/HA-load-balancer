@@ -120,7 +120,7 @@ actions:
           - action: script.set_pv_charging_parameter
             metadata: {}
             data:
-              current: 16
+              current: "{{ max_current }}"
               phase: 3 Phases
             target:
               entity_id: script.set_pv_charging_parameter

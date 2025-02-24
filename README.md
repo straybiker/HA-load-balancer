@@ -122,14 +122,14 @@ Update the following variables in the script with your own helpers and sensors
 
 
 ## Future developments
-Testing: adjust the power limit dynamically with the monthly capacity peak. If you went over your initial setting, you may just as well consume this amount of power the rest of the month.
-Todo: make dependency on the car battery percentage optional, so others when another car charges, it is not depending on my car. This is also needed when another car is charging at my charger. 
-Todo: optimize for dynamic energy contracts
-Todo: provide this in an Home Assistant package. 
+* Testing: adjust the power limit dynamically with the monthly capacity peak. If you went over your initial setting, you may just as well consume this amount of power the rest of the month.
+* Todo: make dependency on the car battery percentage optional, so others when another car charges, it is not depending on my car. This is also needed when another car is charging at my charger. 
+* Todo: optimize for dynamic energy contracts
+* Todo: provide this in an Home Assistant package. 
 
-Maybe: option to limit to 1 phase in Eco mode
-Maybe: a minimum charge power instead of switching the charger off. 
-Maybe: make it an HA integration
+* Maybe: option to limit to 1 phase in Eco mode
+* Maybe: a minimum charge power instead of switching the charger off. 
+* Maybe: make it an HA integration
 
 
 ## Disclaimer

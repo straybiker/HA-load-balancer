@@ -48,7 +48,8 @@ template:
 I assume active load balancing needs to be switched off on the Alfen charger to avoid conflicts. I don't have a license, so running this load balancer in combination with the one from Alfen is untested.
 
 >[!Tip] 
->Since household power consumption can be scattery; best to pass it first trough a low pass filter. https://www.home-assistant.io/integrations/filter/#low-pass .My filter looks like this in the configuration.yaml:
+>Since household power consumption can be scattery; best to pass it first trough a low pass filter. https://www.home-assistant.io/integrations/filter/#low-pass. See the spikes in raw power measurements in the screenshot above. 
+My filter looks like this in the configuration.yaml:
 >```
 >platform: filter
 >name: "Netto verbruik huis LP"
@@ -68,8 +69,8 @@ I assume active load balancing needs to be switched off on the Alfen charger to 
 This load balancer checks every 10 seconds the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total power to use, household + EV charger, is defined in an input helper parameter.
 This load balancer uses 3 phases power and a max current of 16A.
 
-![Power consumption](https://github.com/straybiker/HA-load-balancer/blob/main/doc/powerconsumption.png)
-Red line shows the total power consumption, which is kept steady at 6kW overnight. The small drops are periods that there isn't enough capacity to charge.
+![image](https://github.com/user-attachments/assets/bf4685fa-3eef-4814-b577-23d8f777e9c8)
+Here, during charging, the power is kept stable around 6000W, although major changes in the household power consumption. At 18h, the car was disconnected for a while. The spikes are measurement errors.
 
 The current script also checks the battery state of a BMW. When forecasted battery state doesn't reach a minimum charge by a set time, the charger can override the maximum power to a second limit. If the threshold is reached, charging will just continue until the car stops the session. For example, I want my car to be 80% charged by 8:00 in the morning. If it cannot reach 80%, some additional power can be consumed. Set both power parameters equal to disable the extra power consumption. 
 

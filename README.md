@@ -1,5 +1,5 @@
-# HA-load-balancer
-Power load balancer for Home Assistant tailered to Belgian energy regulation (Capaciteitstarief).
+# Home Assistant car charging load balancer automation 
+Car charging load balancer for Home Assistant tailered to Belgian energy regulation (Capaciteitstarief).
 
 ## Introduction
 This is not an integration (yet), just home assistant yaml files to use in automations and scripts.

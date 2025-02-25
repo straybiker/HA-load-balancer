@@ -11,25 +11,31 @@ This load balancer checks the current power consumption and sets the Alfen Wallb
 This load balancer uses 3 phases power and a maximum current of 16A.
 The current script also checks the battery state of a BMW. When forecasted battery charge doesn't reach a minimum desired level by a set time, the charger can override the maximum power to a second limit. 
 
-## Installation
-- Create a new automation for the load balancer and paste the yaml code of LoadbalanceEVCharger.yamlinto it
-- Create a new script to update the charger and paste the yaml code of the SetChargerParams.yaml in it
-- [Optional] Create a new automation to reset the charger parameters when the car is disconnected and paste the yaml code of resetCharger.yaml in it
+There are 2 verions of the scripts available, one with individual yaml files, one as a package. The version in the package is a simplied version without integration to a car, charger effiency.
+
+>[!WARNING]
+>The package version is untested!
 
 ## Prerequisites
-The load balancer is currently built to used in combination with an Alfen Eve Pro and BMW EV, but it can be easily adjusted to use with another charger or car.  
-
-- Home Assistant HACS Alfen Wallbox integration: https://github.com/leeyuentuen/alfen_wallbox
-- Home Assistant BMW Connected drive integration: https://www.home-assistant.io/integrations/bmw_connected_drive
-- Helpers. See [Configuration](https://github.com/straybiker/HA-load-balancer/blob/main/README.md#configuration) for more details on how to use these:
-  - Input number: maximum total power limit
-  - Input number: overcharge limit for when the minimum car charge is not reached
-  - Input select to select load balancing mode [Off, Minimal 1.4kW, Minimal 4kW, Eco, Fast]
-  - Input number: Alfen charger efficiency
-  - Input number: Car battery capacity
-  - Input number: Minimum target car charge
-  - Date time: to set the time the minimum car charge should be reached
+- Home Assistant HACS Alfen Wallbox integration: https://github.com/leeyuentuen/alfen_wallbox . I assume active load balancing needs to be switched off on the Alfen charger to avoid conflicts. I don't have a license, so running this load balancer in combination with the one from Alfen is untested.
 - Sensor: Current household power consumption. Since I don't have a digital meter yet, but this is a test to prepare for the digital meter. I use a Shelly Pro3EM to measure household power consumption.
+
+## Installation
+These scripts can be installed in 2 ways, by creating individual entities, automations and scripts, or via a package.
+
+###  Option 1: Individual file installation
+#### Step 1
+Install Home Assistant BMW Connected drive integration: https://www.home-assistant.io/integrations/bmw_connected_drive is installed
+
+#### Step 2
+Create helpers. See [Configuration](https://github.com/straybiker/HA-load-balancer/blob/main/README.md#configuration) for more details on how to use these:
+- Input number: maximum total power limit
+- Input number: overcharge limit for when the minimum car charge is not reached
+- Input select to select load balancing mode [Off, Minimal 1.4kW, Minimal 4kW, Eco, Fast]
+- Input number: Alfen charger efficiency
+- Input number: Car battery capacity
+- Input number: Minimum target car charge
+- Date time: to set the time the minimum car charge should be reached
 - Template sensor to determine the socket connection state. Add this to your `configuration.yaml` file.
 ```
 template:
@@ -44,8 +50,6 @@ template:
           {% else %} unavailable
           {% endif %}
 ```
-
-I assume active load balancing needs to be switched off on the Alfen charger to avoid conflicts. I don't have a license, so running this load balancer in combination with the one from Alfen is untested.
 
 >[!Tip] 
 >Since household power consumption can be scattery; best to pass it first trough a low pass filter. https://www.home-assistant.io/integrations/filter/#low-pass. See the spikes in raw power measurements in the screenshot above. 
@@ -64,6 +68,16 @@ My filter looks like this in the configuration.yaml:
 >    precision: 2
 >```
 >sensor.netto_verbruik_huis is the raw household power consumption, netto_verbruik_huis_lp is used by the load balancer. This sensor can become negative if PV panels provide more power then being used by the household.
+
+#### Step 3
+Create the scripts
+- Create a new automation for the load balancer and paste the yaml code of LoadbalanceEVCharger.yamlinto it
+- Create a new script to update the charger and paste the yaml code of the SetChargerParams.yaml in it
+- [Optional] Create a new automation to reset the charger parameters when the car is disconnected and paste the yaml code of resetCharger.yaml in it
+
+### Option 2: Package installation
+See https://www.home-assistant.io/docs/configuration/packages/ for details about packages
+The package is file is located in the package folder.
 
 ## Details
 This load balancer checks every 10 seconds the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total power to use, household + EV charger, is defined in an input helper parameter.

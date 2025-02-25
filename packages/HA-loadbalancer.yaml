@@ -1,0 +1,255 @@
+# 1) Use netto as a sensor in the filter below, this is the netto power (Grid usage - solar - alfen power)
+# 2) Define a load balancing limit in the input_helper
+# 3) Change entity names in the script/automation for the alfen charger if yours are different
+# 4) Change time pattern in the automation, its now defined as 30 sec, dont go lower as 10!
+
+# THIS PACKAGE IS UNTESTED
+
+sensor:
+  - platform: filter
+    name: "Netto Verbruik Huis LB"
+    unique_id: netto_verbruik_huis_lp
+    entity_id: sensor.grid_consumption_netto
+    filters:
+     - filter: outlier
+       window_size: 4
+       radius: 500.0
+     - filter: lowpass
+       time_constant: 12
+       precision: 2
+
+input_number:
+  ev_load_balancing_power_limit:
+    name: EV Load Balancing Power Limit
+    icon: mdi:flash
+    mode: slider
+    unit_of_measurement: W
+    min: 1500
+    max: 12000
+    step: 250
+
+input_select:
+  ev_charge_mode:
+    name: EV Charge Mode
+    icon: mdi:ev-station
+    options:
+      - Off
+      - Minimal 1.4kW
+      - Minimal 4kW
+      - Eco
+      - Fast
+
+template:
+  - sensor:
+      - name: Alfen Connection State
+        unique_id: alfen_connection_state
+        state: >
+          {% set m3 = states('sensor.alfen_mode3_state_socket_1') %}
+          {% if m3 in ['STATE_A', 'STATE_E'] %} Disconnected
+          {% elif m3 in ['STATE_B1', 'STATE_B2', 'STATE_C1', 'STATE_D1', 'STATE_C2', 'STATE_D2'] %} Connected
+          {% elif m3 in ['STATE_F'] %} Error
+          {% else %} Disconnected
+          {% endif %}
+
+script:
+  set_pv_charging_parameter:
+    alias: Set EV charging parameter
+    sequence:
+      - variables:
+          finalcurrent: |-
+            {% if current < 6 %}
+              0
+            {% else %}
+              {{ current }}
+            {% endif %}
+      - alias: Set phases
+        if:
+          - alias: If phase change
+            condition: template
+            value_template: >-
+              {{ phase != states('select.alfen_installation_max_allowed_phases')
+              }}
+        then:
+          - action: select.select_option
+            metadata: {}
+            data:
+              option: "{{ phase }}"
+            target:
+              entity_id: select.alfen_installation_max_allowed_phases
+          - delay:
+              hours: 0
+              minutes: 0
+              seconds: 30
+            enabled: true
+      - alias: Set current
+        if:
+          - condition: template
+            value_template: >-
+              {{ finalcurrent | int !=
+              states('number.alfen_power_connector_max_current_socket_1') | int }}
+            enabled: true
+        then:
+          - action: number.set_value
+            metadata: {}
+            data:
+              value: "{{ finalcurrent }}"
+            target:
+              entity_id: number.alfen_power_connector_max_current_socket_1
+          - delay:
+              hours: 0
+              minutes: 0
+              seconds: 30
+            enabled: true
+    description: ""
+    icon: mdi:ev-station
+    fields:
+      phase:
+        selector:
+          select:
+            options:
+              - 1 Phase
+              - 3 Phases
+            multiple: false
+        name: phase
+        required: false
+        description: EV charging phase [1 Phase, 3 Phases]
+        default: 1 Phase
+      current:
+        selector:
+          number:
+            min: 0
+            max: 16
+            step: 1
+        name: current
+        required: true
+        default: 6
+        description: EV charging current
+
+
+automation:
+  - alias: Reset chargepoint
+    initial_state: 'on'
+    description: >-
+      Reset the charger phase and current when the car is disconnected to prevent
+      the charger being stuck at low settings when HA becomes unavailable
+    triggers:
+      - trigger: state
+        entity_id:
+          - sensor.alfen_connection_state
+        for:
+          hours: 0
+          minutes: 1
+          seconds: 0
+        to: "Disconnected"
+    conditions: []
+    actions:
+      - action: script.set_pv_charging_parameter
+        metadata: {}
+        data:
+          current: 6
+          phase: 3 Phases
+        target:
+          entity_id: script.set_pv_charging_parameter
+    mode: single
+    
+  - alias: Load Balance EV Charging
+    initial_state: 'on'
+    description: ""
+    triggers:
+      - trigger: time_pattern
+        seconds: /30
+      - trigger: state
+        entity_id:
+          - input_select.ev_charge_mode
+          - input_number.ev_load_balancing_power_limit
+    conditions:
+      - condition: state
+        entity_id: sensor.alfen_connection_state
+        state: "Connected"
+    actions:
+      - variables:
+          home_power: "{{ states('sensor.netto_verbruik_huis_lp') | int }}"
+          max_combined_power: "{{ states('input_number.ev_load_balancing_power_limit') | int }}"
+          max_current: "{{ 16 | int }}"
+          min_current: "{{ 6 | int }}"
+          available_power: >
+            {% set power_left = max_combined_power - home_power %}  {{ power_left if
+            power_left > 0 else 0 }}
+          phase_selection: "{{ 3 if available_power >= (230 * min_current * 3) else 1 }}"
+          current_limit: >
+            {% set current = (available_power / (230 * phase_selection)) |
+            int %}  {% if current | int < min_current %}
+              0
+            {% elif current > max_current %}
+              {{ max_current }}
+            {% else %}
+              {{ current }}
+            {% endif %}
+      - choose:
+          # Off
+          - conditions:
+              - condition: state
+                entity_id: input_select.ev_charge_mode
+                state: "Off"
+            sequence:
+              - action: script.set_pv_charging_parameter
+                metadata: {}
+                data:
+                  current: 0
+                  phase: 3 Phases
+                target:
+                  entity_id: script.set_pv_charging_parameter
+          - conditions:
+          # Minimal 1.4kW
+              - condition: state
+                entity_id: input_select.ev_charge_mode
+                state: "Minimal 1.4kW"
+            sequence:
+              - action: script.set_pv_charging_parameter
+                metadata: {}
+                data:
+                  current: 6
+                  phase: 1 Phase
+                target:
+                  entity_id: script.set_pv_charging_parameter
+          - conditions:
+          # Minimal 4kW
+              - condition: state
+                entity_id: input_select.ev_charge_mode
+                state: "Minimal 4kW"
+            sequence:
+              - action: script.set_pv_charging_parameter
+                metadata: {}
+                data:
+                  current: 6
+                  phase: 3 Phases
+                target:
+                  entity_id: script.set_pv_charging_parameter
+          - conditions:
+          # Fast
+              - condition: state
+                entity_id: input_select.ev_charge_mode
+                state: "Fast"
+            sequence:
+              - action: script.set_pv_charging_parameter
+                metadata: {}
+                data:
+                  current: 16
+                  phase: 3 Phases
+                target:
+                  entity_id: script.set_pv_charging_parameter
+          - conditions:
+          # Eco
+              - condition: state
+                entity_id: input_select.ev_charge_mode
+                state: "Eco"
+            sequence:
+              - action: script.set_pv_charging_parameter
+                metadata: {}
+                data:
+                  current: "{{ current_limit | int }}"
+                  phase: "{{ '1 Phase' if phase_selection == 1 else '3 Phases' }}"
+                target:
+                  entity_id: script.set_pv_charging_parameter
+    mode: single
+

@@ -11,10 +11,7 @@ This load balancer checks the current power consumption and sets the Alfen Wallb
 This load balancer uses 3 phases power and a maximum current of 16A.
 The current script also checks the battery state of a BMW. When forecasted battery charge doesn't reach a minimum desired level by a set time, the charger can override the maximum power to a second limit. 
 
-There are 2 verions of the scripts available, one with individual yaml files, one as a package. The version in the package is a simplied version without integration to a car, charger effiency.
-
->[!WARNING]
->The package version is untested!
+There are 2 verions of the scripts available, one with individual yaml files, one as a package. The version in the package is a simplified version without integration to BMW and  charger effiency.
 
 ## Prerequisites
 - Home Assistant HACS Alfen Wallbox integration: https://github.com/leeyuentuen/alfen_wallbox . I assume active load balancing needs to be switched off on the Alfen charger to avoid conflicts. I don't have a license, so running this load balancer in combination with the one from Alfen is untested.
@@ -25,10 +22,10 @@ These scripts can be installed in 2 ways, by creating individual entities, autom
 
 ###  Option 1: Individual file installation
 #### Step 1
-Install Home Assistant BMW Connected drive integration: https://www.home-assistant.io/integrations/bmw_connected_drive is installed
+Install Home Assistant BMW Connected drive integration: https://www.home-assistant.io/integrations/bmw_connected_drive
 
 #### Step 2
-Create helpers. See [Configuration](https://github.com/straybiker/HA-load-balancer/blob/main/README.md#configuration) for more details on how to use these:
+Create helpers. See [Configuration](https://github.com/straybiker/HA-load-balancer/blob/main/README.md#configuration) for more details on how to use these.
 - Input number: maximum total power limit
 - Input number: overcharge limit for when the minimum car charge is not reached
 - Input select to select load balancing mode [Off, Minimal 1.4kW, Minimal 4kW, Eco, Fast]
@@ -52,7 +49,7 @@ template:
 ```
 
 >[!Tip] 
->Since household power consumption can be scattery; best to pass it first trough a low pass filter. https://www.home-assistant.io/integrations/filter/#low-pass. See the spikes in raw power measurements in the screenshot above. 
+>Since household power consumption can be scattery; best to pass it first trough a low pass filter. https://www.home-assistant.io/integrations/filter/#low-pass. See the spikes in raw power measurements in the screenshot below. 
 My filter looks like this in the configuration.yaml:
 >```
 >platform: filter
@@ -76,6 +73,8 @@ Create the scripts
 - [Optional] Create a new automation to reset the charger parameters when the car is disconnected and paste the yaml code of resetCharger.yaml in it
 
 ### Option 2: Package installation
+>[!WARNING]
+>The package version is untested!
 See https://www.home-assistant.io/docs/configuration/packages/ for details about packages
 The package is file is located in the package folder.
 

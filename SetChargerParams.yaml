@@ -31,7 +31,7 @@ sequence:
       - condition: template
         value_template: >-
           {{ finalcurrent | int !=
-          states('number.alfen_eve_power_connector_max_current_socket_1') }}
+          states('number.alfen_eve_power_connector_max_current_socket_1') | int }}
         enabled: true
     then:
       - action: number.set_value

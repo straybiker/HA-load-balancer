@@ -31,15 +31,13 @@ actions:
         - now).total_seconds() / 3600 %}   {{ time_diff | round(2) | float }}
       battery_capacity_wh: "{{ states('input_number.ev_battery_capacity') | int }}"
       soc_threshold: "{{ states('input_number.ev_soc_threshold') | int }}"
-      charger_efficiency: "{{ states('input_number.alfen_eve_power_efficiency') | float / 100 }}"
       available_power: >
         {% set power_left = max_combined_power - home_power %}  {{ power_left if
         power_left > 0 else 0 }}
-      adjusted_available_power: "{{ available_power / charger_efficiency }}"
-      phase_selection: "{{ 3 if adjusted_available_power >= (230 * min_current * 3) else 1 }}"
+      phase_selection: "{{ 3 if available_power >= (230 * min_current * 3) else 1 }}"
       current_limit: >
-        {% set current = (adjusted_available_power / (230 * phase_selection)) |
-        int %}  {% if current | int < min_current %}
+        {% set current = (available_power / (230 * phase_selection)) | int %} 
+        {% if current | int < min_current %}
           0
         {% elif current > max_current %}
           {{ max_current }}
@@ -60,7 +58,7 @@ actions:
         {% endif %}
       adjusted_available_power_final: |
         {% set power_left = power_limit - home_power %} 
-        {{ power_left / charger_efficiency if power_left > 0 else 0 }}
+        {{ power_left if power_left > 0 else 0 }}
       adjusted_phase_selection: >-
         {{ 3 if adjusted_available_power_final >= (230 * min_current * 3) else 1
         }}
@@ -120,7 +118,7 @@ actions:
           - action: script.set_pv_charging_parameter
             metadata: {}
             data:
-              current: "{{ max_current }}"
+              current: 16
               phase: 3 Phases
             target:
               entity_id: script.set_pv_charging_parameter

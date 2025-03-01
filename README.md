@@ -14,7 +14,7 @@ The current script also checks the battery state of a BMW. When forecasted batte
 There are 2 verions of the scripts available, one with individual yaml files, one as a package. The version in the package is a simplified version without integration to BMW and  charger effiency.
 
 ## Prerequisites
-- Home Assistant HACS Alfen Wallbox integration: https://github.com/leeyuentuen/alfen_wallbox . I assume active load balancing needs to be switched off on the Alfen charger to avoid conflicts. I don't have a license, so running this load balancer in combination with the one from Alfen is untested.
+- Home Assistant HACS Alfen Wallbox integration: https://github.com/leeyuentuen/alfen_wallbox . I assume active load balancing needs to be switched off on the Alfen charger to avoid conflicts. I don't have a license, so running this load balancer in combination with the one from Alfen is untested. Minimum version 2.9.4
 - Sensor: Current household power consumption. Since I don't have a digital meter yet, but this is a test to prepare for the digital meter. I use a Shelly Pro3EM to measure household power consumption.
 
 ## Installation
@@ -76,7 +76,7 @@ Create the scripts
 >[!WARNING]
 >The package version is untested!
 See https://www.home-assistant.io/docs/configuration/packages/ for details about packages
-The package is file is located in the package folder.
+The package file is located in the package folder.
 
 ## Details
 This load balancer checks every 10 seconds the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total power to use, household + EV charger, is defined in an input helper parameter.
@@ -95,7 +95,7 @@ If there is not enough power to charge at 3 phases, 6A, the charger is switched 
 Use the script to set the charger parameters to a desired phase and current when you disconnect the cable from the car. This way you shouldn't end up with a charger that is set to 0A when home assistant is not available.
 
 > [!WARNING]
-> There is still a risk if home assistant becomes unavailable during charging with the charger set at 0A. Then you need the [Eve Connect](https://alfen.com/en-be/eve-connect) app or ACE Service Installer to set the values of the charger.
+> There is still a risk if Home Assistant becomes unavailable during charging with the charger set at 0A. Then you need the [Eve Connect](https://alfen.com/en-be/eve-connect) app or ACE Service Installer to set the values of the charger.
 
 The loading behavior can be adjust by in input select:
 - Off: Do not charge

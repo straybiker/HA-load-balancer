@@ -72,10 +72,10 @@ Create the scripts
 - [Optional] Create a new automation to reset the charger parameters when the car is disconnected and paste the yaml code of resetCharger.yaml in it
 
 ### Option 2: Package installation
->[!WARNING]
->The package version is untested!
 See https://www.home-assistant.io/docs/configuration/packages/ for details about packages
 The package file is located in the package folder.
+>[!WARNING]
+>The package version is untested!
 
 ## Details
 This load balancer checks every 10 seconds the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total power to use, household + EV charger, is defined in an input helper parameter.

@@ -29,7 +29,6 @@ Create helpers. See [Configuration](https://github.com/straybiker/HA-load-balanc
 - Input number: maximum total power limit
 - Input number: overcharge limit for when the minimum car charge is not reached
 - Input select to select load balancing mode [Off, Minimal 1.4kW, Minimal 4kW, Eco, Fast]
-- Input number: Alfen charger efficiency
 - Input number: Car battery capacity
 - Input number: Minimum target car charge
 - Date time: to set the time the minimum car charge should be reached
@@ -116,7 +115,6 @@ Update the following variables in the script with your own helpers and sensors
 | battery_percentage | % | sensor | Linked car current battery percentage |
 | battery_capacity_wh | Wh | input number helper | Linked car battery capacity |
 | soc_threshold | % | input number helper | Required battery % to reach at a set time. If not, overcharge to extended_power_limit |
-| charger_efficiency | % | input number helper | sometimes the charger output is less then the theoretical output. This value can compensate this loss. Note: this output efficiency seems to vary so using this pushes your power consumption over max_combined_power and extended_power_limit |
 | target_time | date time | datetime input helper | Time at which soc_threshold should be reached. Not this is not a variable but in the calculation of time_until_target_time |
 
 ![Image](https://github.com/user-attachments/assets/9ebd9154-5a44-45b6-ae89-c8545ebcd0fa)
@@ -133,6 +131,9 @@ Update the following variables in the script with your own helpers and sensors
 
 ![Image](https://github.com/user-attachments/assets/cf492018-cf80-4fbe-bc1d-b0f54fee5580)
 
+
+>[!Tip]
+>Once the monthly peak consumption passes the set power limit of the loadbalancer, you can increase this limit to the new monthly peak via an automation. Do not forget to reset this at the beginning of the month.
 
 ## Future developments
 * Testing: adjust the power limit dynamically with the monthly capacity peak. If you went over your initial setting, you may just as well consume this amount of power the rest of the month.

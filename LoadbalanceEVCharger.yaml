@@ -46,10 +46,10 @@ actions:
         {% endif %}
       estimated_battery_percentage: >
         {% set charging_power = (current_limit * 230 * phase_selection) | float
-        %}        {% set charging_time = time_until_target_time / 3600 %} {% set
-        added_energy = (charging_power * charging_time | float) %} {{
-        (((battery_capacity_wh * battery_percentage / 100) + added_energy) /
-        battery_capacity_wh) * 100 }}
+        %}         {% set added_energy = (charging_power *
+        time_until_target_time | float) %}  {{ (((battery_capacity_wh *
+        battery_percentage / 100) + added_energy) / battery_capacity_wh) * 100
+        }}
       power_limit: |
         {% if estimated_battery_percentage | int < soc_threshold %}
           {{ extended_power_limit }}

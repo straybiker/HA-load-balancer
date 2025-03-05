@@ -1,8 +1,22 @@
 # Home Assistant car charging load balancer automation 
-Car charging load balancer for Home Assistant tailered to Belgian energy regulation (Capaciteitstarief).
+Car charging load balancer for Home Assistant tailored to Belgian energy regulation (Capaciteitstarief).
+
+## Table of Contents
+- [Introduction](#introduction)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+  - [Option 1: Individual file installation](#option-1-individual-file-installation)
+  - [Option 2: Package installation](#option-2-package-installation)
+- [Details](#details)
+- [Configuration and helpers](#configuration-and-helpers)
+- [Future developments](#future-developments)
+- [Disclaimer](#disclaimer)
+- [License](#license)
+- [Contributing](#contributing)
+- [Contact](#contact)
 
 ## Introduction
-This is not an integration (yet), just home assistant yaml files to use in automations and scripts.
+This is not an integration (yet), just Home Assistant YAML files to use in automations and scripts.
 
 > [!Note]
 > These scripts are based on my own needs, such as an integration with my car. Future developments may make it more generic. 
@@ -11,10 +25,10 @@ This load balancer checks the current power consumption and sets the Alfen Wallb
 This load balancer uses 3 phases power and a maximum current of 16A.
 The current script also checks the battery state of a BMW. When forecasted battery charge doesn't reach a minimum desired level by a set time, the charger can override the maximum power to a second limit. 
 
-There are 2 verions of the scripts available, one with individual yaml files, one as a package. The version in the package is a simplified version without integration to BMW and  charger effiency.
+There are 2 versions of the scripts available, one with individual YAML files, one as a package. The version in the package is a simplified version without integration to BMW and charger efficiency.
 
 ## Prerequisites
-- Home Assistant HACS Alfen Wallbox integration: https://github.com/leeyuentuen/alfen_wallbox . I assume active load balancing needs to be switched off on the Alfen charger to avoid conflicts. I don't have a license, so running this load balancer in combination with the one from Alfen is untested. Minimum version 2.9.4
+- Home Assistant HACS Alfen Wallbox integration: [Alfen Wallbox Integration](https://github.com/leeyuentuen/alfen_wallbox). I assume active load balancing needs to be switched off on the Alfen charger to avoid conflicts. I don't have a license, so running this load balancer in combination with the one from Alfen is untested. Minimum version 2.9.4
 - Sensor: Current household power consumption. Since I don't have a digital meter yet, but this is a test to prepare for the digital meter. I use a Shelly Pro3EM to measure household power consumption.
 
 ## Installation
@@ -22,10 +36,10 @@ These scripts can be installed in 2 ways, by creating individual entities, autom
 
 ###  Option 1: Individual file installation
 #### Step 1
-Install Home Assistant BMW Connected drive integration: https://www.home-assistant.io/integrations/bmw_connected_drive
+Install Home Assistant BMW Connected drive integration: [BMW Connected Drive Integration](https://www.home-assistant.io/integrations/bmw_connected_drive)
 
 #### Step 2
-Create helpers. See [Configuration](https://github.com/straybiker/HA-load-balancer/blob/main/README.md#configuration) for more details on how to use these.
+Create helpers. See [Configuration](#configuration-and-helpers) for more details on how to use these.
 - Input number: maximum total power limit
 - Input number: overcharge limit for when the minimum car charge is not reached
 - Input select to select load balancing mode [Off, Minimal 1.4kW, Minimal 4kW, Eco, Fast]
@@ -33,7 +47,7 @@ Create helpers. See [Configuration](https://github.com/straybiker/HA-load-balanc
 - Input number: Minimum target car charge
 - Date time: to set the time the minimum car charge should be reached
 - Template sensor to determine the socket connection state. Add this to your `configuration.yaml` file.
-```
+```yaml
 template:
   - sensor:
       - name: Alfen Eve Connection State
@@ -48,9 +62,8 @@ template:
 ```
 
 >[!Tip] 
->Since household power consumption can be scattery; best to pass it first trough a low pass filter. https://www.home-assistant.io/integrations/filter/#low-pass. See the spikes in raw power measurements in the screenshot below. 
-My filter looks like this in the configuration.yaml:
->```
+>Since household power consumption can be noisy, it's best to pass it through a low pass filter. See [Home Assistant Low Pass Filter](https://www.home-assistant.io/integrations/filter/#low-pass) documentation. The filter helps smooth out spikes in power measurements as shown below:
+>```yaml
 >platform: filter
 >name: "Netto verbruik huis LP"
 >unique_id: netto_verbruik_huis_lp
@@ -63,13 +76,23 @@ My filter looks like this in the configuration.yaml:
 >    time_constant: 12
 >    precision: 2
 >```
->sensor.netto_verbruik_huis is the raw household power consumption, netto_verbruik_huis_lp is used by the load balancer. This sensor can become negative if PV panels provide more power then being used by the household.
+>Note: `sensor.netto_verbruik_huis` represents raw household power consumption, while `netto_verbruik_huis_lp` is the filtered value used by the load balancer. This sensor can show negative values when PV panels generate more power than the household consumes.
 
-#### Step 3
-Create the scripts
-- Create a new automation for the load balancer and paste the yaml code of LoadbalanceEVCharger.yamlinto it
-- Create a new script to update the charger and paste the yaml code of the SetChargerParams.yaml in it
-- [Optional] Create a new automation to reset the charger parameters when the car is disconnected and paste the yaml code of resetCharger.yaml in it
+#### Step 3: Create Scripts
+1. Load Balancer Automation
+   - Create a new automation in Home Assistant
+   - Paste the contents of `LoadbalanceEVCharger.yaml` into it
+   - Save and enable the automation
+
+2. Charger Parameters Script
+   - Create a new script in Home Assistant  
+   - Paste the contents of `SetChargerParams.yaml` into it
+   - Save the script
+
+3. Optional: Reset Parameters Automation
+   - Create a new automation in Home Assistant
+   - Paste the contents of `resetCharger.yaml` into it 
+   - Save and enable the automation
 
 ### Option 2: Package installation
 See https://www.home-assistant.io/docs/configuration/packages/ for details about packages
@@ -78,8 +101,11 @@ The package file is located in the package folder.
 >The package version is untested!
 
 ## Details
-This load balancer checks every 10 seconds the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total power to use, household + EV charger, is defined in an input helper parameter.
-This load balancer uses 3 phases power and a max current of 16A.
+This load balancer checks every 10 seconds the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total allowed power to use (capaciteitspiek), household + EV charger, is defined in an input helper parameter.
+The loadbalancer takes charger efficiency into account by comparing the calculated power output with the actual power output.
+
+>[!NOTE]
+> This load balancer uses 3 phases power and a max current of 16A. 1 phase only is not supported.
 
 ![image](https://github.com/user-attachments/assets/bf4685fa-3eef-4814-b577-23d8f777e9c8)
 Here, during charging, the power is kept stable around 6000W, although major changes in the household power consumption. At 18h, the car was disconnected for a while. The spikes are measurement errors.
@@ -96,7 +122,7 @@ Use the script to set the charger parameters to a desired phase and current when
 > [!WARNING]
 > There is still a risk if Home Assistant becomes unavailable during charging with the charger set at 0A. Then you need the [Eve Connect](https://alfen.com/en-be/eve-connect) app or ACE Service Installer to set the values of the charger.
 
-The loading behavior can be adjust by in input select:
+The loading behavior can be adjusted by an input select:
 - Off: Do not charge
 - Minimal 1.4kW: Always charge at 1 phase, 6A
 - Minimal 4kW: Always charge at 3 phases, 6A
@@ -134,15 +160,16 @@ Update the following variables in the script with your own helpers and sensors
 >Once the monthly peak consumption passes the set power limit of the loadbalancer, you can increase this limit to the new monthly peak via an automation. Do not forget to reset this at the beginning of the month.
 
 ## Future developments
-* Testing: adjust the power limit dynamically with the monthly capacity peak. If you went over your initial setting, you may just as well consume this amount of power the rest of the month.
-* Todo: make dependency on the car battery percentage optional, so others when another car charges, it is not depending on my car. This is also needed when another car is charging at my charger. 
-* Todo: optimize for dynamic energy contracts
-* Todo: provide this in an Home Assistant package. 
+- [ ] Testing: adjust the power limit dynamically with the monthly capacity peak. If you went over your initial setting, you may just as well consume this amount of power the rest of the month.
+- [ ] Testing: Autocalculate charger efficiency
+- [ ] Make dependency on the car battery percentage optional, so others when another car charges, it is not depending on my car. This is also needed when another car is charging at my charger. 
+- [ ] Optimize for dynamic energy contracts
+- [ ] Provide this in a Home Assistant package. 
 
-* Maybe: option to limit to 1 phase in Eco mode
-* Maybe: a minimum charge power instead of switching the charger off. 
-* Maybe: make it an HA integration
+- [ ] Option to limit to 1 phase in Eco mode
+- [ ] A minimum charge power instead of switching the charger off. 
+- [ ] Convert to an HA integration
 
 
 ## Disclaimer
-The use of this automation is at your own risk! I take no responsibility for the outcome of the power consumption, the amount the car is charged or any damages that may come from using this automation.
+The use of this automation is at your own risk. The author assumes no responsibility for any consequences arising from the use of this automation, including but not limited to power consumption, the state of charge of the vehicle, or any damages that may result from its use. Users are advised to thoroughly test and verify the automation in their own environment before relying on it for critical operations.

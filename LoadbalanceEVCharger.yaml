@@ -14,7 +14,7 @@ conditions:
 actions:
   - variables:
       home_power: "{{ states('sensor.netto_verbruik_huis_lp') | int }}"
-      max_combined_power: "{{ states('input_number.ev_load_balancing_power_limit') | int }}"
+      max_combined_power_limit: "{{ states('input_number.ev_load_balancing_power_limit') | int }}"
       extended_power_limit: "{{ states('input_number.ev_load_balancer_extended_power_limit') | int }}"
       max_current: "{{ 16 | int }}"
       min_current: "{{ 6 | int }}"
@@ -31,9 +31,17 @@ actions:
         - now).total_seconds() / 3600 %}   {{ time_diff | round(2) | float }}
       battery_capacity_wh: "{{ states('input_number.ev_battery_capacity') | int }}"
       soc_threshold: "{{ states('input_number.ev_soc_threshold') | int }}"
+      charger_efficiency: >
+        {% set current_phase = 3 if
+        states('select.alfen_eve_installation_max_allowed_phases') == "3 Phases"
+        else 1 %} {% set efficiency =
+        states('sensor.alfen_eve_active_power_total_socket_1') | float /
+        (states('number.alfen_eve_power_connector_max_current_socket_1') | int *
+        230 * current_phase) | float %}   {{ 1.0 if efficiency == 0 else
+        efficiency }}
       available_power: >
-        {% set power_left = max_combined_power - home_power %}  {{ power_left if
-        power_left > 0 else 0 }}
+        {% set power_left = (max_combined_power_limit - home_power) /
+        charger_efficiency %}  {{ power_left if power_left > 0 else 0 }}
       phase_selection: "{{ 3 if available_power >= (230 * min_current * 3) else 1 }}"
       current_limit: >
         {% set current = (available_power / (230 * phase_selection)) | int %} 
@@ -54,10 +62,10 @@ actions:
         {% if estimated_battery_percentage | int < soc_threshold %}
           {{ extended_power_limit }}
         {% else %}
-          {{ max_combined_power }}
+          {{ max_combined_power_limit }}
         {% endif %}
       adjusted_available_power_final: |
-        {% set power_left = power_limit - home_power %} 
+        {% set power_left = (power_limit - home_power) / charger_efficiency %} 
         {{ power_left if power_left > 0 else 0 }}
       adjusted_phase_selection: >-
         {{ 3 if adjusted_available_power_final >= (230 * min_current * 3) else 1

@@ -1,6 +1,8 @@
 # Home Assistant car charging load balancer automation 
 Car charging load balancer for Home Assistant tailored to Belgian energy regulation (Capaciteitstarief).
 
+
+
 ## Table of Contents
 - [Introduction](#introduction)
 - [Prerequisites](#prerequisites)
@@ -16,20 +18,21 @@ Car charging load balancer for Home Assistant tailored to Belgian energy regulat
 - [Contact](#contact)
 
 ## Introduction
-This is not an integration (yet), just Home Assistant YAML files to use in automations and scripts.
+This Home Assistant automation provides intelligent load balancing for EV charging, designed to minimize energy costs and avoid exceeding your maximum power limit (capaciteitspiek) under Belgian energy regulations. By dynamically adjusting the charging current based on your household's power consumption, this system helps you charge your EV efficiently without overloading your electrical grid.
 
-> [!Note]
-> These scripts are based on my own needs, such as an integration with my car. Future developments may make it more generic. 
+This project is ideal for users with an Alfen Wallbox and can be adapted for other EV chargers and power monitoring solutions.  While the current version includes specific integration with BMW vehicles for battery state monitoring, this dependency can be made optional.
 
-This load balancer checks the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total power to use, household + EV charger, is limited by a parameter. 
-This load balancer uses 3 phases power and a maximum current of 16A.
+This is not a fully-fledged Home Assistant integration (yet), but rather a set of YAML files for automations and scripts that you can easily integrate into your existing Home Assistant setup.
+
+This load balancer checks the current household power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power by setting the allowed phases and current.
 The current script also checks the battery state of a BMW. When forecasted battery charge doesn't reach a minimum desired level by a set time, the charger can override the maximum power to a second limit. 
 
 There are 2 versions of the scripts available, one with individual YAML files, one as a package. The version in the package is a simplified version without integration to BMW and charger efficiency.
 
 ## Prerequisites
+- 3 Phases electrical installation
 - Home Assistant HACS Alfen Wallbox integration: [Alfen Wallbox Integration](https://github.com/leeyuentuen/alfen_wallbox). I assume active load balancing needs to be switched off on the Alfen charger to avoid conflicts. I don't have a license, so running this load balancer in combination with the one from Alfen is untested. Minimum version 2.9.4
-- Sensor: Current household power consumption. Since I don't have a digital meter yet, but this is a test to prepare for the digital meter. I use a Shelly Pro3EM to measure household power consumption.
+- Sensor: Current household power consumption measured, excluding the charger power consumption. Since I don't have a digital meter yet, but this is a test to prepare for the digital meter. I use a Shelly Pro3EM to measure household power consumption.
 
 ## Installation
 These scripts can be installed in 2 ways, by creating individual entities, automations and scripts, or via a package.
@@ -38,8 +41,8 @@ These scripts can be installed in 2 ways, by creating individual entities, autom
 #### Step 1
 Install Home Assistant BMW Connected drive integration: [BMW Connected Drive Integration](https://www.home-assistant.io/integrations/bmw_connected_drive)
 
-#### Step 2
-Create helpers. See [Configuration](#configuration-and-helpers) for more details on how to use these.
+#### Step 2: Create helpers
+See [Configuration](#configuration-and-helpers) for more details on how to use these.
 - Input number: maximum total power limit
 - Input number: overcharge limit for when the minimum car charge is not reached
 - Input select to select load balancing mode [Off, Minimal 1.4kW, Minimal 4kW, Eco, Fast]
@@ -102,22 +105,22 @@ The package file is located in the package folder.
 
 ## Details
 This load balancer checks every 10 seconds the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total allowed power to use (capaciteitspiek), household + EV charger, is defined in an input helper parameter.
-The loadbalancer takes charger efficiency into account by comparing the calculated power output with the actual power output.
+The loadbalancer also takes charger efficiency into account by comparing the calculated power output with the actual power output.
 
 >[!NOTE]
-> This load balancer uses 3 phases power and a max current of 16A. 1 phase only is not supported.
+> This load balancer switches between 3 phases power and a max current of 16A. 1 phase only is not supported.
 
 ![image](https://github.com/user-attachments/assets/bf4685fa-3eef-4814-b577-23d8f777e9c8)
 Here, during charging, the power is kept stable around 6000W, although major changes in the household power consumption. At 18h, the car was disconnected for a while. The spikes are measurement errors.
 
-The current script also checks the battery state of a BMW. When forecasted battery state doesn't reach a minimum charge by a set time, the charger can override the maximum power to a second limit. If the threshold is reached, charging will just continue until the car stops the session. For example, I want my car to be 80% charged by 8:00 in the morning. If it cannot reach 80%, some additional power can be consumed. Set both power parameters equal to disable the extra power consumption. 
+The current script also checks the battery state of a BMW. When forecasted battery percentage doesn't reach a minimum charge by a set time, the charger can override the maximum power to a second limit. If the threshold is reached, charging will just continue until the car stops the session. For example, I want my car to be 80% charged by 8:00 in the morning. If it cannot reach 80%, some additional power can be consumed. Set both power parameters equal to disable the extra power consumption. 
 
 If there is not enough power to charge at 3 phases, 6A, the charger is switched to 1 phase. When the remaining power is not enough to reach 1 phase, 6A, charging stops by setting the maximum socket current to 0A. There is a risk with this that the car is not charged for a prolonged period if household power consumption is high.
 
 >[!NOTE]
 >There is a built in delay in the script when the charger parameters are changed. Since this automation runs every 10 seconds, a warning in the HA log will appear that the automation is already running.
 
-Use the script to set the charger parameters to a desired phase and current when you disconnect the cable from the car. This way you shouldn't end up with a charger that is set to 0A when home assistant is not available.
+Use the script `resetCharger.yaml` to set the charger parameters to a desired phase and current when you disconnect the cable from the car. This way you shouldn't end up with a charger that is set to 0A when Home Assistant is not available.
 
 > [!WARNING]
 > There is still a risk if Home Assistant becomes unavailable during charging with the charger set at 0A. Then you need the [Eve Connect](https://alfen.com/en-be/eve-connect) app or ACE Service Installer to set the values of the charger.

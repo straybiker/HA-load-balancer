@@ -7,6 +7,26 @@ sequence:
         {% else %}
           {{ current }}
         {% endif %}
+  - alias: Set current
+    if:
+      - condition: template
+        value_template: >-
+          {{ finalcurrent | int !=
+          states('number.alfen_eve_power_connector_max_current_socket_1') | int
+          }}
+        enabled: true
+    then:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: "{{ finalcurrent }}"
+        target:
+          entity_id: number.alfen_eve_power_connector_max_current_socket_1
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 10
+        enabled: true
   - alias: Set phases
     if:
       - alias: If phase change
@@ -24,26 +44,8 @@ sequence:
       - delay:
           hours: 0
           minutes: 0
-          seconds: 10
-        enabled: true
-  - alias: Set current
-    if:
-      - condition: template
-        value_template: >-
-          {{ finalcurrent | int !=
-          states('number.alfen_eve_power_connector_max_current_socket_1') | int }}
-        enabled: true
-    then:
-      - action: number.set_value
-        metadata: {}
-        data:
-          value: "{{ finalcurrent }}"
-        target:
-          entity_id: number.alfen_eve_power_connector_max_current_socket_1
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 10
+          seconds: 20
+          milliseconds: 0
         enabled: true
 description: ""
 icon: mdi:ev-station

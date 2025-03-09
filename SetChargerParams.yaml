@@ -47,7 +47,7 @@ sequence:
           seconds: 20
           milliseconds: 0
         enabled: true
-description: ""
+description: Set the Alfen Eve Pro current and phase
 icon: mdi:ev-station
 fields:
   phase:
@@ -71,3 +71,4 @@ fields:
     required: true
     default: 6
     description: EV charging current
+mode: single

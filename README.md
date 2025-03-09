@@ -104,10 +104,13 @@ The package file is located in the package folder.
 >The package version is untested!
 
 ## Details
-This load balancer checks every 10 seconds the current power consumption and sets the Alfen Wallbox charging parameters according to the remaining available power. The total allowed power to use (capaciteitspiek), household + EV charger, is defined in an input helper parameter.
+This load balancer checks every 10 seconds the current household power consumption and sets the Alfen Wallbox charging parameters, phase and current, according to the remaining available power. The total allowed power to use (capaciteitspiek), household + EV charger, is defined in an input helper parameter.
 The loadbalancer also takes charger efficiency into account by comparing the calculated power output with the actual power output.
 
->[!NOTE]
+> [!Note]
+> The maximum current can still be limited by the settings of the car. This setting can be checked by the external socket max current sensor. 
+
+>[!IMPORTANT]
 > This load balancer switches between 3 phases power and a max current of 16A. 1 phase only is not supported.
 
 ![image](https://github.com/user-attachments/assets/bf4685fa-3eef-4814-b577-23d8f777e9c8)

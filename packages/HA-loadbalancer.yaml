@@ -7,7 +7,7 @@
 
 sensor:
   - platform: filter
-    name: "Netto Verbruik Huis LB"
+    name: "Netto Verbruik Huis"
     unique_id: netto_verbruik_huis_lp
     entity_id: sensor.grid_consumption_netto
     filters:
@@ -48,7 +48,7 @@ template:
           {% if m3 in ['STATE_A', 'STATE_E'] %} Disconnected
           {% elif m3 in ['STATE_B1', 'STATE_B2', 'STATE_C1', 'STATE_D1', 'STATE_C2', 'STATE_D2'] %} Connected
           {% elif m3 in ['STATE_F'] %} Error
-          {% else %} Disconnected
+          {% else %} Error
           {% endif %}
 
 script:
@@ -62,45 +62,49 @@ script:
             {% else %}
               {{ current }}
             {% endif %}
-      - alias: Set phases
-        if:
-          - alias: If phase change
-            condition: template
-            value_template: >-
-              {{ phase != states('select.alfen_installation_max_allowed_phases')
-              }}
-        then:
-          - action: select.select_option
-            metadata: {}
-            data:
-              option: "{{ phase }}"
-            target:
-              entity_id: select.alfen_installation_max_allowed_phases
-          - delay:
-              hours: 0
-              minutes: 0
-              seconds: 30
-            enabled: true
-      - alias: Set current
-        if:
-          - condition: template
-            value_template: >-
-              {{ finalcurrent | int !=
-              states('number.alfen_power_connector_max_current_socket_1') | int }}
-            enabled: true
-        then:
-          - action: number.set_value
-            metadata: {}
-            data:
-              value: "{{ finalcurrent }}"
-            target:
-              entity_id: number.alfen_power_connector_max_current_socket_1
-          - delay:
-              hours: 0
-              minutes: 0
-              seconds: 30
-            enabled: true
-    description: ""
+      - parallel:
+          - alias: Set phases
+            if:
+              - alias: If phase change
+                condition: template
+                value_template: >-
+                  {{ phase !=
+                  states('select.alfen_installation_max_allowed_phases') }}
+            then:
+              - action: select.select_option
+                metadata: {}
+                data:
+                  option: "{{ phase }}"
+                target:
+                  entity_id: select.alfen_installation_max_allowed_phases
+              - delay:
+                  hours: 0
+                  minutes: 1
+                  seconds: 0
+                  milliseconds: 0
+                enabled: true
+          - alias: Set current
+            if:
+              - condition: template
+                value_template: >-
+                  {{ finalcurrent | int !=
+                  states('number.alfen_power_connector_max_current_socket_1') |
+                  int }}
+                enabled: true
+            then:
+              - action: number.set_value
+                metadata: {}
+                data:
+                  value: "{{ finalcurrent }}"
+                target:
+                  entity_id: number.alfen_power_connector_max_current_socket_1
+              - delay:
+                  hours: 0
+                  minutes: 0
+                  seconds: 30
+                  milliseconds: 0
+                enabled: true
+    description: "Set the Alfen Eve Pro current and phase"
     icon: mdi:ev-station
     fields:
       phase:
@@ -136,10 +140,10 @@ automation:
       - trigger: state
         entity_id:
           - sensor.alfen_connection_state
-        for:
-          hours: 0
-          minutes: 1
-          seconds: 0
+        # for:
+          # hours: 0
+          # minutes: 0
+          # seconds: 5
         to: "Disconnected"
     conditions: []
     actions:
@@ -234,7 +238,7 @@ automation:
               - action: script.set_pv_charging_parameter
                 metadata: {}
                 data:
-                  current: 16
+                  current: "{{ max_current }}"
                   phase: 3 Phases
                 target:
                   entity_id: script.set_pv_charging_parameter
@@ -252,4 +256,3 @@ automation:
                 target:
                   entity_id: script.set_pv_charging_parameter
     mode: single
-

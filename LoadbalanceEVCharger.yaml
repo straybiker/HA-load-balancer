@@ -34,11 +34,13 @@ actions:
       charger_efficiency: >
         {% set current_phase = 3 if
         states('select.alfen_eve_installation_max_allowed_phases') == "3 Phases"
-        else 1 %} {% set efficiency =
-        states('sensor.alfen_eve_active_power_total_socket_1') | float /
-        (states('number.alfen_eve_power_connector_max_current_socket_1') | int *
-        230 * current_phase) | float %}   {{ 1.0 if efficiency == 0 else
-        efficiency }}
+        else 1 %}  {% if
+        states('number.alfen_eve_power_connector_max_current_socket_1') | int > 0 %}   
+          {{ states('sensor.alfen_eve_active_power_total_socket_1') | float /
+            (states('number.alfen_eve_power_connector_max_current_socket_1') | int * 230 * current_phase) | float }} 
+        {% else %} 
+          {{ 1.0 }}
+        {% endif %}  
       available_power: >
         {% set power_left = (max_combined_power_limit - home_power) /
         charger_efficiency %}  {{ power_left if power_left > 0 else 0 }}

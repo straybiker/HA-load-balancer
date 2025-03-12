@@ -10,6 +10,10 @@ sequence:
   - parallel:
       - alias: Set phases
         if:
+          - condition: template
+            value_template: >-
+              {{ has_value('select.alfen_eve_installation_max_allowed_phases')
+              }}
           - alias: If phase change
             condition: template
             value_template: >-
@@ -30,6 +34,11 @@ sequence:
             enabled: true
       - alias: Set current
         if:
+          - condition: template
+            value_template: >-
+              {{
+              has_value('number.alfen_eve_power_connector_max_current_socket_1')
+              }}
           - condition: template
             value_template: >-
               {{ finalcurrent | int !=

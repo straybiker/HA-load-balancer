@@ -167,7 +167,7 @@ Update the following variables in the script with your own helpers and sensors
 
 ## Future developments
 - [ ] Testing: adjust the power limit dynamically with the monthly capacity peak. If you went over your initial setting, you may just as well consume this amount of power the rest of the month.
-- [ ] Testing: Autocalculate charger efficiency
+- [x] Testing: Autocalculate charger efficiency
 - [ ] Make dependency on the car battery percentage optional, so others when another car charges, it is not depending on my car. This is also needed when another car is charging at my charger. 
 - [ ] Optimize for dynamic energy contracts
 - [ ] Provide this in a Home Assistant package. 

@@ -23,7 +23,6 @@ actions:
       max_current: "{{ 16 | int }}"
       min_current: "{{ 6 | int }}"
       battery_percentage: "{{ states('sensor.ix3_m_sport_remaining_battery_percent') | int(100) }}"
-      current_time: "{{ now().strftime('%H:%M:%S') }}"
       time_until_target_time: >
         {% set now = now() %}    {% set target_time =
         states('input_datetime.ev_charge_time_target') %}   {% set target_hour =

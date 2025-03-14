@@ -1,0 +1,33 @@
+script:
+  get_charging_parameters:
+    variables:
+      config: !include cars/ev_loadbalancer_config.yaml
+      car_config: "{{ config.cars.bmw_ix3 }}"
+      car:
+        # State parameters
+        battery_percentage: >
+          {% if has_value(car_config.soc_sensor) %}
+            {{ states(car_config.soc_sensor) | int }}
+          {% else %}
+            {{ 100 }}
+          {% endif %}
+        soc_threshold: >
+          {% if states(config.settings.soc_threshold) %}
+            {{ states(config.settings.soc_threshold) | int }}
+          {% else %}
+            {{ config.settings.soc_threshold }}
+          {% endif %}
+        # Time parameters
+        time_until_target_time: >
+          {% set target_time = states(car_config.time_sensor) %}
+          {% if target_time %}
+            {% set now = now() %}
+            {% set target = strptime(target_time, "%H:%M") %}
+            {% set target_datetime = now.replace(hour=target.hour, minute=target.minute, second=0, microsecond=0) %}
+            {% if target_datetime < now %}
+              {% set target_datetime = target_datetime + timedelta(days=1) %}
+            {% endif %}
+            {{ ((target_datetime - now).total_seconds() / 3600) | round(2) }}
+          {% else %}
+            {{ 24.0 }}
+          {% endif %}

@@ -1,4 +1,6 @@
 alias: Set EV charging parameter
+variables:
+  config: !include cars/ev_loadbalancer_config.yaml
 sequence:
   - variables:
       finalcurrent: |-
@@ -11,82 +13,54 @@ sequence:
       - alias: Set phases
         if:
           - condition: template
-            value_template: >-
-              {{ has_value('select.alfen_eve_installation_max_allowed_phases')
-              }}
+            value_template: "{{ has_value(config.charger.phase_select) }}"
           - alias: If phase change
             condition: template
-            value_template: >-
-              {{ phase !=
-              states('select.alfen_eve_installation_max_allowed_phases') }}
+            value_template: "{{ phase != states(config.charger.phase_select) }}"
         then:
           - action: system_log.write
             data:
               level: info
-              message: >-
-                Changing phase from {{
-                states('select.alfen_eve_installation_max_allowed_phases') }} to
-                {{ phase }}
+              message: "Changing phase from {{ states(config.charger.phase_select) }} to {{ phase }}"
           - action: logbook.log
             data:
-              message: >-
-                Changing phase from {{
-                states('select.alfen_eve_installation_max_allowed_phases') }} to
-                {{ phase }}
-              entity_id: select.alfen_eve_installation_max_allowed_phases
+              message: "Changing phase from {{ states(config.charger.phase_select) }} to {{ phase }}"
+              entity_id: "{{ config.charger.phase_select }}"
               name: Alfen Phases
           - action: select.select_option
-            metadata: {}
             data:
               option: "{{ phase }}"
             target:
-              entity_id: select.alfen_eve_installation_max_allowed_phases
+              entity_id: "{{ config.charger.phase_select }}"
+          # Allow the relay switching to complete and stabilize
           - delay:
-              hours: 0
-              minutes: 1
-              seconds: 0
-              milliseconds: 0
+              seconds: 10
             enabled: true
       - alias: Set current
         if:
           - condition: template
-            value_template: >-
-              {{
-              has_value('number.alfen_eve_power_connector_max_current_socket_1')
-              }}
+            value_template: "{{ has_value(config.charger.current) }}"
           - condition: template
-            value_template: >-
-              {{ finalcurrent | int !=
-              states('number.alfen_eve_power_connector_max_current_socket_1') |
-              int }}
+            value_template: "{{ finalcurrent | int != states(config.charger.current) | int }}"
             enabled: true
         then:
           - action: system_log.write
             data:
               level: info
-              message: >-
-                Changing current from {{
-                states('number.alfen_eve_power_connector_max_current_socket_1')
-                }} to {{ finalcurrent }}
+              message: "Changing current from {{ states(config.charger.current) }} to {{ finalcurrent }}"
           - action: logbook.log
             data:
-              message: >-
-                Changing current from {{
-                states('number.alfen_eve_power_connector_max_current_socket_1')
-                }} to {{ finalcurrent }}
-              entity_id: select.alfen_eve_installation_max_allowed_phases
+              message: "Changing current from {{ states(config.charger.current) }} to {{ finalcurrent }}"
+              entity_id: "{{ config.charger.current }}"
               name: Alfen Current
           - action: number.set_value
-            metadata: {}
             data:
               value: "{{ finalcurrent }}"
             target:
-              entity_id: number.alfen_eve_power_connector_max_current_socket_1
+              entity_id: "{{ config.charger.current }}"
+          # Allow the current change to settle
           - delay:
-              hours: 0
-              minutes: 0
-              seconds: 30
-              milliseconds: 0
+              seconds: 5
             enabled: true
 description: Set the Alfen Eve Pro current and phase
 icon: mdi:ev-station

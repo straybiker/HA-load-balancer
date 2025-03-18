@@ -44,8 +44,16 @@ actions:
           {{ 1.0 }}
         {% endif %}  
       available_power: >
-        {% set power_left = (max_combined_power_limit - home_power) /
-        charger_efficiency %}  {{ power_left if power_left > 0 else 0 }}
+        {% set min_power_threshold = -(230 * min_current) | float %} # At least 6A available
+        {% set pv_prioritized = true %}
+
+        {% if pv_prioritized == true and home_power < min_power_threshold %}
+          {% set available = states('sensor.sma_power_w') | float / charger_efficiency %}
+        {% else %}
+          {% set available = (max_combined_power_limit - home_power) / charger_efficiency %}
+        {% endif %}
+        
+        {{ available if available > 0 else 0 }}
       phase_selection: "{{ 3 if available_power >= (230 * min_current * 3) else 1 }}"
       current_limit: >
         {% set current = (available_power / (230 * phase_selection)) | int %} 

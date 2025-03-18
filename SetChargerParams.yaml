@@ -20,6 +20,21 @@ sequence:
               {{ phase !=
               states('select.alfen_eve_installation_max_allowed_phases') }}
         then:
+          - action: system_log.write
+            data:
+              level: info
+              message: >-
+                Changing phase from {{
+                states('select.alfen_eve_installation_max_allowed_phases') }} to
+                {{ phase }}
+          - action: logbook.log
+            data:
+              message: >-
+                Changing phase from {{
+                states('select.alfen_eve_installation_max_allowed_phases') }} to
+                {{ phase }}
+              entity_id: select.alfen_eve_installation_max_allowed_phases
+              name: Alfen Phases
           - action: select.select_option
             metadata: {}
             data:
@@ -46,6 +61,21 @@ sequence:
               int }}
             enabled: true
         then:
+          - action: system_log.write
+            data:
+              level: info
+              message: >-
+                Changing current from {{
+                states('number.alfen_eve_power_connector_max_current_socket_1')
+                }} to {{ finalcurrent }}
+          - action: logbook.log
+            data:
+              message: >-
+                Changing current from {{
+                states('number.alfen_eve_power_connector_max_current_socket_1')
+                }} to {{ finalcurrent }}
+              entity_id: select.alfen_eve_installation_max_allowed_phases
+              name: Alfen Current
           - action: number.set_value
             metadata: {}
             data:

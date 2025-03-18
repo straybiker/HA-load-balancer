@@ -1,45 +1,46 @@
-# Package configuration 
+# Package configuration
 
-  # Load balancer package for EV charging
-  # Requires the following helpers to be created:
-  # - input_number.ev_load_balancing_power_limit
-  # - input_number.ev_load_balancer_extended_power_limit
-  # - input_select.ev_charge_mode [Off, Minimal 1.4kW, Minimal 4kW, Eco, Fast]
-  # - input_number.ev_soc_threshold
-  # - input_datetime.ev_charge_time_target
+# Load balancer package for EV charging
+# Requires the following helpers to be created:
+# - input_number.ev_load_balancing_power_limit
+# - input_number.ev_load_balancer_extended_power_limit
+# - input_select.ev_charge_mode [Off, Minimal 1.4kW, Minimal 4kW, Eco, Fast]
+# - input_number.ev_soc_threshold
+# - input_datetime.ev_charge_time_target
 
 # Charger settings
-charger:
-  # Sensor references
-  home_power: sensor.netto_verbruik_huis_lp
-  connection_state: sensor.alfen_eve_connection_state
-  mode3_state: sensor.alfen_mode3_state_socket_1
-  active_power: sensor.alfen_eve_active_power_total_socket_1
-  current: number.alfen_eve_power_connector_max_current_socket_1
-  phase_select: select.alfen_eve_installation_max_allowed_phases
-  max_phases: 3
-  max_current: 16
-  min_current: 6
-  nominal_voltage: 230
-
-  # Cars settings
-cars:
-  bmw_ix3:
-    # Required parameters
+config:
+  charger:
+    # Sensor references
+    home_power: sensor.netto_verbruik_huis_lp
+    connection_state: sensor.alfen_eve_connection_state
+    mode3_state: sensor.alfen_mode3_state_socket_1
+    active_power: sensor.alfen_eve_active_power_total_socket_1
+    current: number.alfen_eve_power_connector_max_current_socket_1
+    phase_select: select.alfen_eve_installation_max_allowed_phases
+    max_phases: 3
     max_current: 16
     min_current: 6
-    battery_capacity_wh: 80000
-    soc_sensor: sensor.ix3_m_sport_remaining_battery_percent
-    time_sensor: input_datetime.ev_charge_time_target
+    nominal_voltage: 230
 
-# Input entities
-settings:
-  # Power settings
-  power_limit: input_number.ev_load_balancing_power_limit
-  power_limit_extended: input_number.ev_load_balancer_extended_power_limit
-  charge_mode: input_select.ev_charge_mode
-  soc_threshold: input_number.ev_soc_threshold
-  car: bmw_ix3  # Reference just the car key, not the full path
+    # Cars settings
+  cars:
+    bmw_ix3:
+      # Required parameters
+      max_current: 16
+      min_current: 6
+      battery_capacity_wh: 80000
+      soc_sensor: sensor.ix3_m_sport_remaining_battery_percent
+      time_sensor: input_datetime.ev_charge_time_target
+
+  # Input entities
+  settings:
+    # Power settings
+    power_limit: input_number.ev_load_balancing_power_limit
+    power_limit_extended: input_number.ev_load_balancer_extended_power_limit
+    charge_mode: input_select.ev_charge_mode
+    soc_threshold: input_number.ev_soc_threshold
+    car: bmw_ix3 # Reference just the car key, not the full path
 
 script:
   get_charging_parameters:
@@ -83,8 +84,8 @@ script:
               {{ 24.0 }}
             {% endif %}
     sequence:
-    - stop: ""
-      response_variable: "{{ response }}"
+      - stop: ""
+        response_variable: "{{ response }}"
 
   set_charger_params:
     alias: Set EV charging parameter
@@ -180,20 +181,20 @@ script:
     mode: single
 
 automation:
-  - alias: Load Balance EV Charging
+  - alias: Load Balance EV Charging2
     id: load_balance_ev_charging
     description: "Dynamic load balancing for EV charging with optional car-aware power management"
     variables:
       # Initialize response variable
       params: null
-      
+
       # Get configuration
       charger: "{{ config.ev_load_balancer.charger }}"
       settings: "{{ config.ev_load_balancer.settings }}"
-      
+
       # Define constants from charger
       nominal_voltage: "{{ charger.nominal_voltage }}"
-      
+
       # Get sensor states once
       sensor_states:
         home_power: "{{ states(charger.home_power) | int }}"
@@ -220,7 +221,7 @@ automation:
     actions:
       - action: script.get_charging_parameters
         response_variable: params
-      
+
       - variables:
           # Calculate efficiency using sensor states with proper variable references
           charger_efficiency: >
@@ -295,74 +296,74 @@ automation:
               - condition: template
                 value_template: "{{ states(params.config.settings.charge_mode) == 'Off' }}"
             sequence:
-              - action: script.set_pv_charging_parameter
+              - action: script.set_charger_params
                 metadata: {}
                 data:
                   current: 0
                   phase: 3 Phases
                 target:
-                  entity_id: script.set_pv_charging_parameter
+                  entity_id: script.set_charger_params
           - conditions:
               - condition: template
                 value_template: "{{ states(params.config.settings.charge_mode) == 'Minimal 1.4kW' }}"
             sequence:
-              - action: script.set_pv_charging_parameter
+              - action: script.set_charger_params
                 metadata: {}
                 data:
                   current: 6
                   phase: 1 Phase
                 target:
-                  entity_id: script.set_pv_charging_parameter
+                  entity_id: script.set_charger_params
           - conditions:
               - condition: template
                 value_template: "{{ states(params.config.settings.charge_mode) == 'Minimal 4kW' }}"
             sequence:
-              - action: script.set_pv_charging_parameter
+              - action: script.set_charger_params
                 metadata: {}
                 data:
                   current: 6
                   phase: 3 Phases
                 target:
-                  entity_id: script.set_pv_charging_parameter
+                  entity_id: script.set_charger_params
           - conditions:
               - condition: template
                 value_template: "{{ states(params.config.settings.charge_mode) == 'Fast' }}"
             sequence:
-              - action: script.set_pv_charging_parameter
+              - action: script.set_charger_params
                 metadata: {}
                 data:
                   current: 16
                   phase: 3 Phases
                 target:
-                  entity_id: script.set_pv_charging_parameter
+                  entity_id: script.set_charger_params
           - conditions:
               - condition: template
                 value_template: "{{ states(params.config.settings.charge_mode) == 'Eco' }}"
             sequence:
-              - action: script.set_pv_charging_parameter
+              - action: script.set_charger_params
                 metadata: {}
                 data:
                   current: "{{ adjusted_current_limit | int }}"
                   phase: "{{ '1 Phase' if adjusted_phase_selection == 1 else '3 Phases' }}"
                 target:
-                  entity_id: script.set_pv_charging_parameter
+                  entity_id: script.set_charger_params
     mode: single
-
-  - alias: Reset chargepoint
-    description: Reset charger when car disconnects
-    variables:
-      charger: "{{ config.ev_load_balancer.charger }}"
-    triggers:
-      - trigger: template
-        value_template: "{{ states(config.ev_load_balancer.charger.connection_state) == 'Disconnected' }}"
-        for:
-          minutes: 1
-    action:
-      - action: script.set_pv_charging_parameter
-        metadata: {}
-        data:
-          current: "{{ config.ev_load_balancer.charger.max_current }}"
-          phase: 3 Phases
-        target:
-          entity_id: script.set_pv_charging_parameter
-    mode: single
+    
+#  - alias: Reset chargepoint2
+#    description: Reset charger when car disconnects
+#    variables:
+#      charger: "{{ config.ev_load_balancer.charger }}"
+#    triggers:
+#      - trigger: template
+#        value_template: "{{ states(config.ev_load_balancer.charger.connection_state) == 'Disconnected' }}"
+#        for:
+#          minutes: 1
+#    action:
+#      - action: script.set_charger_params
+#        metadata: {}
+#        data:
+#          current: "{{ config.ev_load_balancer.charger.max_current }}"
+#          phase: 3 Phases
+#        target:
+#          entity_id: script.set_charger_params
+#    mode: single

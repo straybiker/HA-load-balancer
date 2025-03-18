@@ -11,6 +11,9 @@ conditions:
   - condition: state
     entity_id: sensor.alfen_eve_connection_state
     state: Connected
+  - condition: numeric_state
+    entity_id: sensor.ix3_m_sport_remaining_battery_percent
+    below: 100
 actions:
   - variables:
       home_power: "{{ states('sensor.netto_verbruik_huis_lp') | int }}"

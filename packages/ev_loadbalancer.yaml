@@ -28,7 +28,7 @@ template:
           active_power: "{{ states('sensor.alfen_eve_active_power_total_socket_1') }}"
           current: "{{ states('number.alfen_eve_power_connector_max_current_socket_1') }}"
           phase_select: "{{ states('select.alfen_eve_installation_max_allowed_phases') }}"
-          max_phases: "{{ 3 | int }}"
+          # max_phases: "{{ 3 | int }}" for future development
           max_current: "{{ 16 | int }}"
           min_current: "{{ 6 | int }}"
           nominal_voltage: "{{ 230 | int }}"
@@ -151,15 +151,14 @@ automation:
 
     triggers:
       - trigger: time_pattern
-        seconds: /30
-        # minutes: /1
+        seconds: /10
     conditions:
       - condition: template
         value_template: "{{ states('sensor.ev_load_balancer_charger') == 'Connected' }}"
-        enabled: false
+        enabled: true
       - condition: template
         value_template: "{{ has_value(state_attr('sensor.ev_load_balancer_charger', 'phase_select')) and has_value(state_attr('sensor.ev_load_balancer_charger', 'current')) }}"
-        enabled: false
+        enabled: true
 
     actions:
       - variables:

@@ -18,20 +18,28 @@ template:
   - sensor:
       # Charger settings
       - name: "ev_load_balancer_charger"
-        state: "{{ states('sensor.alfen_eve_connection_state') }}"
+        state: "Alfen Eve Pro Single"
         unique_id: ev_load_balancer_charger
         icon: mdi-ev-station
         attributes:
           # Sensor references
           home_power: "{{ states('sensor.netto_verbruik_huis_lp') }}"
-          mode3_state: "{{ states('sensor.alfen_mode3_state_socket_1') }}"
           active_power: "{{ states('sensor.alfen_eve_active_power_total_socket_1') }}"
           current: "{{ states('number.alfen_eve_power_connector_max_current_socket_1') }}"
           phase_select: "{{ states('select.alfen_eve_installation_max_allowed_phases') }}"
           # max_phases: "{{ 3 | int }}" for future development
+          default_phases: "3 Phases"
           max_current: "{{ 16 | int }}"
           min_current: "{{ 6 | int }}"
+          default_current: "{{ 16 | int }}"
           nominal_voltage: "{{ 230 | int }}"
+          connection_state: >
+            {% set m3 = states('sensor.alfen_eve_mode3_state_socket_1') %}
+            {% if m3 in ['STATE_A', 'STATE_E'] %} Disconnected
+            {% elif m3 in ['STATE_B1', 'STATE_B2', 'STATE_C1', 'STATE_D1', 'STATE_C2', 'STATE_D2'] %} Connected
+            {% elif m3 in ['STATE_F'] %} Error
+            # {% else %} unavailable
+            {% endif %}
 
       # Cars settings
       - name: "ev_load_balancer_car"
@@ -154,7 +162,7 @@ automation:
         seconds: /10
     conditions:
       - condition: template
-        value_template: "{{ states('sensor.ev_load_balancer_charger') == 'Connected' }}"
+        value_template: "{{ state_attr('sensor.ev_load_balancer_charger','connection_state') == 'Connected' }}"
         enabled: true
       - condition: template
         value_template: "{{ has_value(state_attr('sensor.ev_load_balancer_charger', 'phase_select')) and has_value(state_attr('sensor.ev_load_balancer_charger', 'current')) }}"
@@ -261,10 +269,10 @@ automation:
         metadata: {}
         data:
           message: >
-            Charging calculations - Efficiency: {{ charger_efficiency }},
-            Available power: {{ available_power }}W,
-            Current limit: {{ current_limit }}A,
-            Phase selection: {{ phase_selection }}
+            Charging calculations - Efficiency: {{ charger_efficiency }}W,
+            Adjusted Available Power: {{ adjusted_available_power_final }}W,
+            Adjusted Current Limit: {{ adjusted_current_limit }}A,
+            Adjusted Phase Selection: {{ adjusted_phase_selection }}
           level: debug
 
       # Charging mode selection with logging
@@ -325,21 +333,22 @@ automation:
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
     mode: single
-#  - alias: Reset chargepoint2
-#    description: Reset charger when car disconnects
-#    variables:
-#      charger: "{{ config.ev_load_balancer.charger }}"
-#    triggers:
-#      - trigger: template
-#        value_template: "{{ states(config.ev_load_balancer.charger.connection_state) == 'Disconnected' }}"
-#        for:
-#          minutes: 1
-#    action:
-#      - action: script.set_charger_params
-#        metadata: {}
-#        data:
-#          current: "{{ config.ev_load_balancer.charger.max_current }}"
-#          phase: 3 Phases
-#        target:
-#          entity_id: script.set_charger_params
-#    mode: single
+
+  - alias: Reset EV charge
+    id: ev_load_balancer_ev_charger_reset
+    description: Reset charger when charger is disconnected
+    triggers:
+      - trigger: template
+        value_template: "{{ state_attr('sensor.ev_load_balancer_charger','connection_state') == 'Disconnected' }}"
+        for:
+          minutes: 1
+    action:
+      - action: script.ev_load_balancer_set_charger_params
+        metadata: {}
+        data:
+          current: "{{ state_attr('sensor.ev_load_balancer_charger','default_current') }}"
+          phase: "{{ state_attr('sensor.ev_load_balancer_charger','default_phases') }}"
+        target:
+          entity_id: script.ev_load_balancer_set_charger_params
+    mode: single
+

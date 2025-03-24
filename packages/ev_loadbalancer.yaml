@@ -20,7 +20,7 @@ template:
       - name: "ev_load_balancer_charger"
         state: "Alfen Eve Pro Single"
         unique_id: ev_load_balancer_charger
-        icon: mdi-ev-station
+        icon: mdi:ev-station
         attributes:
           # Sensor references
           home_power: "{{ states('sensor.netto_verbruik_huis_lp') }}"
@@ -64,6 +64,7 @@ template:
           power_limit: "{{ states('input_number.ev_load_balancing_power_limit') | int }}"
           power_limit_extended: "{{ states('input_number.ev_load_balancer_extended_power_limit') | int }}"
           car_aware: "{{ true }}"
+          # pv_aware: "{{ false }}"
 
 ###################################################################################
 ## END CONFIGURATION
@@ -127,7 +128,6 @@ script:
               - delay:
                   seconds: 10
     description: Set the Alfen Eve Pro current and phase
-    icon: mdi:ev-station
     fields:
       phase:
         selector:
@@ -165,7 +165,7 @@ automation:
         value_template: "{{ state_attr('sensor.ev_load_balancer_charger','connection_state') == 'Connected' }}"
         enabled: true
       - condition: template
-        value_template: "{{ has_value(state_attr('sensor.ev_load_balancer_charger', 'phase_select')) and has_value(state_attr('sensor.ev_load_balancer_charger', 'current')) }}"
+        value_template: "{{ state_attr('sensor.ev_load_balancer_charger', 'phase_select') != 'unknown' and state_attr('sensor.ev_load_balancer_charger', 'current') != 'unknown' }}"
         enabled: true
 
     actions:
@@ -264,17 +264,6 @@ automation:
             {% set current = (adjusted_available_power_final / (nominal_voltage * adjusted_phase_selection)) | int %}
             {{ current | int if current | int >= min_current else 0 }}
 
-      # Add logging before charging mode selection
-      - action: system_log.write
-        metadata: {}
-        data:
-          message: >
-            Charging calculations - Efficiency: {{ charger_efficiency }}W,
-            Adjusted Available Power: {{ adjusted_available_power_final }}W,
-            Adjusted Current Limit: {{ adjusted_current_limit }}A,
-            Adjusted Phase Selection: {{ adjusted_phase_selection }}
-          level: debug
-
       # Charging mode selection with logging
       - choose:
           - conditions:
@@ -351,4 +340,3 @@ automation:
         target:
           entity_id: script.ev_load_balancer_set_charger_params
     mode: single
-

@@ -87,7 +87,7 @@ The current script also checks the battery state of a BMW. When forecasted batte
 If there is not enough power to charge at 3 phases, 6A, the charger is switched to 1 phase. When the remaining power is not enough to reach 1 phase, 6A, charging stops by setting the maximum socket current to 0A. There is a risk with this that the car is not charged for a prolonged period if household power consumption is high.
 
 >[!NOTE]
->There is a built in delay in the script when the charger parameters are changed. Since this automation runs every 10 seconds, a warning in the HA log will appear that the automation is already running.
+>There is a built in dynamic delay in the script when the charger parameters are changed. There will be no update sent to the charger until the setting is updated or a time-out in the script occurs.
 
 When the charger is disconnected, the charger phases and current are set to a default value. This way you shouldn't end up with a charger that is set to 0A when Home Assistant is not available.
 
@@ -115,8 +115,10 @@ Update the following variables in the script with your own sensors and parameter
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
 | `active_power`        | W    | Sensor              | Current active power of the charger to calculate charger efficiency.       |
-| `current`             | A    | Sensor [Input,output] | Active current of the charger.                                           |
-| `phases`              |      | Sensor [Input,output] | Active selected phases of the charger. ['1 Phase', '3 Phases']               |
+| `current_input`       | A    | Sensor              | Active current of the charger.                                             |
+| `phases_input`        |      | Sensor              | Active selected phases of the charger. ['1 Phase', '3 Phases']             |
+| `current_output`      | A    | Output entity       | Current setting of the charger.                                            |
+| `phases_output`       |      | Output entity       | Phases setting of the charger. ['1 Phase', '3 Phases']                     |
 | `default_phases`      |      | Parameter           | Default phase selection to reset the charger after disconnecting. ['1 Phase', '3 Phases']         |
 | `max_current`         | A    | Parameter           | Miximum supported current of the charger.                                  |
 | `min_current`         | A    | Parameter           | Minimum supported current of the charger.                                  |

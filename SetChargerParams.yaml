@@ -18,24 +18,27 @@ sequence:
             condition: template
             value_template: "{{ phase != states(config.charger.phase_select) }}"
         then:
-          - action: system_log.write
-            data:
-              level: info
-              message: "Changing phase from {{ states(config.charger.phase_select) }} to {{ phase }}"
-          - action: logbook.log
-            data:
-              message: "Changing phase from {{ states(config.charger.phase_select) }} to {{ phase }}"
-              entity_id: "{{ config.charger.phase_select }}"
-              name: Alfen Phases
+          - variables:
+              max_delays: 60
           - action: select.select_option
             data:
               option: "{{ phase }}"
             target:
-              entity_id: "{{ config.charger.phase_select }}"
-          # Allow the relay switching to complete and stabilize
-          - delay:
-              seconds: 10
-            enabled: true
+              entity_id: select.alfen_eve_installation_max_allowed_phases
+          - repeat:
+              sequence:
+                - delay:
+                    hours: 0
+                    minutes: 0
+                    seconds: 1
+                    milliseconds: 0
+                  enabled: true
+              until:
+                - condition: template
+                  value_template: >-
+                    {{
+                    states('sensor.alfen_eve_connector_1_max_allowed_of_phases')
+                    == phase or repeat.index >= max_delays }}
       - alias: Set current
         if:
           - condition: template
@@ -44,24 +47,27 @@ sequence:
             value_template: "{{ finalcurrent | int != states(config.charger.current) | int }}"
             enabled: true
         then:
-          - action: system_log.write
-            data:
-              level: info
-              message: "Changing current from {{ states(config.charger.current) }} to {{ finalcurrent }}"
-          - action: logbook.log
-            data:
-              message: "Changing current from {{ states(config.charger.current) }} to {{ finalcurrent }}"
-              entity_id: "{{ config.charger.current }}"
-              name: Alfen Current
+          - variables:
+              max_delays: 30
           - action: number.set_value
             data:
               value: "{{ finalcurrent }}"
             target:
-              entity_id: "{{ config.charger.current }}"
-          # Allow the current change to settle
-          - delay:
-              seconds: 5
-            enabled: true
+              entity_id: number.alfen_eve_power_connector_max_current_socket_1
+          - repeat:
+              sequence:
+                - delay:
+                    hours: 0
+                    minutes: 0
+                    seconds: 1
+                    milliseconds: 0
+                  enabled: true
+              until:
+                - condition: template
+                  value_template: >-
+                    {{
+                    states('sensor.alfen_eve_main_external_max_current_socket_1')
+                    | int == finalcurrent | int or repeat.index >= max_delays }}
 description: Set the Alfen Eve Pro current and phase
 icon: mdi:ev-station
 fields:

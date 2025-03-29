@@ -7,7 +7,6 @@ sequence:
         {% else %}
           {{ current }}
         {% endif %}
-      max_delays: 30
   - parallel:
       - alias: Set phases
         if:
@@ -21,6 +20,8 @@ sequence:
               {{ phase !=
               states('select.alfen_eve_installation_max_allowed_phases') }}
         then:
+          - variables:
+              max_delays: 60
           - action: select.select_option
             metadata: {}
             data:
@@ -55,6 +56,8 @@ sequence:
               int }}
             enabled: true
         then:
+          - variables:
+              max_delays: 30
           - action: number.set_value
             metadata: {}
             data:

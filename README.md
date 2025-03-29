@@ -1,68 +1,73 @@
-# Home Assistant car charging load balancer automation 
-Car charging load balancer for Home Assistant tailored to Belgian energy regulation (Capaciteitstarief).
-
-
+# Home Assistant Car Charging Load Balancer Automation 
+A car charging load balancer for Home Assistant tailored to Belgian energy regulation (Capaciteitstarief).
 
 ## Table of Contents
 - [Introduction](#introduction)
+- [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
+  - [Step 1: Create Helpers](#step-1-create-helpers)
+  - [Step 2: Package Installation](#step-2-package-installation)
 - [Details](#details)
-- [Configuration and helpers](#configuration-and-helpers)
-- [Future developments](#future-developments)
+- [Configuration and Helpers](#configuration-and-helpers)
+- [Future Developments](#future-developments)
 - [Disclaimer](#disclaimer)
-- [License](#license)
-- [Contributing](#contributing)
-- [Contact](#contact)
 
 ## Introduction
-This Home Assistant automation provides intelligent load balancing for EV charging, designed to minimize energy costs and avoid exceeding your maximum power limit (capaciteitspiek) under Belgian energy regulations. By dynamically adjusting the charging current based on your household's power consumption, this system helps you charge your EV efficiently without overloading your electrical grid.
+This Home Assistant automation provides intelligent load balancing for EV charging, designed to minimize energy costs and avoid exceeding your maximum power limit (capaciteitspiek) under Belgian energy regulations. By dynamically adjusting the charging phases and current based on your household's power consumption, this system helps you charge your EV efficiently without exceeding a set peak power (capaciteitstarief).
 
-This project is ideal for users with an EV charger that can switch phases and adjust current, such as the Alfen Eve Pro Wallbox.  The load balancer can also be made car aware where the current SOC is taking into account to reach a minimum SOC at a set time.
+This project is ideal for users with an EV charger that can switch phases and adjust current, such as the Alfen Eve Pro Wallbox. The load balancer can also be made car-aware, where the current SOC is taken into account to reach a minimum SOC at a set time.
 
-This is not a fully-fledged Home Assistant integration (yet), but [package](https://www.home-assistant.io/docs/configuration/packages/) that you can easily integrate into your existing Home Assistant setup.
+This is not a fully-fledged Home Assistant integration (yet), but a [package](https://www.home-assistant.io/docs/configuration/packages/) that can easily be integrated into your existing Home Assistant setup. 
 
-This load balancer checks the current household power consumption and sets the EV charging parameters according to the remaining available power by setting the allowed phases and current.
+> [!IMPORTANT]
+> The separate YAML files are deprecated and will be removed in the future.
+
+## Features
+- Dynamically adjusts EV charging based on household power consumption.
+- Supports 3-phase electrical installations.
+- Car-aware functionality to meet minimum SOC targets by a set time.
+- Configurable modes: Off, Minimal (1.4kW or 4kW), Eco, and Fast.
+- Handles charger efficiency and measurement noise with filtering.
 
 ## Prerequisites
-- 3 Phases electrical installation. 1 phase only is not yet supported
-- Integration with the EV charger. Only 1 socket is currently supported.
-  - For the Alfen Eve Pro install the Home Assistant HACS Alfen Wallbox integration: [Alfen Wallbox Integration](https://github.com/leeyuentuen/alfen_wallbox). I assume active load balancing needs to be switched off on the Alfen charger to avoid conflicts. I don't have a license, so running this load balancer in combination with the one from Alfen is untested. Minimum version 2.9.4
-- Sensor: Current household power consumption measured, excluding the charger power consumption. Since I don't have a digital meter yet, but this is a test to prepare for the digital meter. I use a Shelly Pro3EM to measure household power consumption.
+- **3-phase electrical installation**: 1-phase is not yet supported.
+- **EV charger integration**: Only 1 socket is currently supported.
+  - For the Alfen Eve Pro, install the Home Assistant HACS Alfen Wallbox integration: [Alfen Wallbox Integration](https://github.com/leeyuentuen/alfen_wallbox). Ensure active load balancing is disabled on the Alfen charger to avoid conflicts. Minimum version: 2.9.4.
+- **Household power consumption sensor** excluding charger power consumption. 
 
 ## Installation
-### Step 1: Create helpers
-See [Configuration](#configuration-and-helpers) for more details on how to use these. Instead of helpers that can be used from the UI, these can also be hardcoded in the configuration section.
-#### Mandatory
-- Input number: maximum total power limit. 
-- Input select to select load balancing mode [Off, Minimal 1.4kW, Minimal 4kW, Eco, Fast]
+### Step 1: Create Helpers
+Helpers can be created via the Home Assistant UI or hardcoded in the configuration. See [Configuration and Helpers](#configuration-and-helpers) for details.
 
-#### Optional for car aware functionality
-- Input number: overcharge limit for when the minimum car charge is not reached
-- Input number: Minimum target car charge
-- Date time: to set the time the minimum car charge should be reached
+#### Mandatory Helpers
+- **Input number**: Maximum total power limit.
+- **Input select**: Load balancing mode [Off, Minimal 1.4kW, Minimal 4kW, Eco, Fast].
 
->[!Tip] 
->Since household power consumption can be noisy, it's best to pass it through a low pass filter. See [Home Assistant Low Pass Filter](https://www.home-assistant.io/integrations/filter/#low-pass) documentation. The filter helps smooth out spikes in power measurements as shown below:
->```yaml
->platform: filter
->name: "Netto verbruik huis LP"
->unique_id: netto_verbruik_huis_lp
->entity_id: sensor.netto_verbruik_huis
->filters:
->  - filter: outlier
->    window_size: 4
->    radius: 500.0
->  - filter: lowpass
->    time_constant: 12
->    precision: 2
->```
->Note: `sensor.netto_verbruik_huis` represents raw household power consumption, while `netto_verbruik_huis_lp` is the filtered value used by the load balancer. This sensor can show negative values when PV panels generate more power than the household consumes.
+#### Optional Helpers (for car-aware functionality)
+- **Input number**: Overcharge limit for when the minimum car charge is not reached.
+- **Input number**: Minimum target car charge.
+- **Date time**: Time by which the minimum car charge should be reached.
 
-### Option 2: Package installation
-See https://www.home-assistant.io/docs/configuration/packages/ for details about packages
-The package file is located in the package folder.
+> [!TIP]
+> Use a low-pass filter to smooth noisy household power consumption data. Example configuration:
+> ```yaml
+> platform: filter
+> name: "Netto verbruik huis LP"
+> unique_id: netto_verbruik_huis_lp
+> entity_id: sensor.netto_verbruik_huis
+> filters:
+>   - filter: outlier
+>     window_size: 4
+>     radius: 500.0
+>   - filter: lowpass
+>     time_constant: 12
+>     precision: 2
+> ```
+> Here, `sensor.netto_verbruik_huis` is the raw household power consumption, and `netto_verbruik_huis_lp` is the filtered value used by the load balancer.
 
+### Step 2: Package Installation
+Follow the [Home Assistant package documentation](https://www.home-assistant.io/docs/configuration/packages/) for installation details. The package file is located in the `package` folder.
 
 ## Details
 This load balancer checks every 10 seconds the current household power consumption and sets the Alfen Wallbox charging parameters, phase and current, according to the remaining available power. The total allowed power to use (capaciteitspiek), household + EV charger, is defined in an input helper parameter.
@@ -97,18 +102,45 @@ The loading behavior can be adjusted by an input select:
 - Fast: Always load at 3 phases, 16A
 
 ## Configuration and helpers
-Update the following variables in the script with your own helpers and sensors
+Update the following variables in the script with your own sensors and parameters. The parameters can be hard coded or set with a helper variable if you want to control it from the UI
 
-| Variable | Unit | Type | Description |
-| -------- | ---- | ---- | ----------- |
-| home_power | W | sensor | The (smoothed) household power consumption excluding the charger |
-| max_combined_power | W | input number helper | Maximum power consumption limit incling charging |
-| extended_power_limit | W | input number helper | Maximum overcharge limit to reach the minimum car SOC threshold |
-| max_current | A | fixed value | Update to the maximum charger or car current in your system |
-| battery_percentage | % | sensor | Linked car current battery percentage |
-| battery_capacity_wh | Wh | input number helper | Linked car battery capacity |
-| soc_threshold | % | input number helper | Required battery % to reach at a set time. If not, overcharge to extended_power_limit |
-| target_time | date time | datetime input helper | Time at which soc_threshold should be reached. Not this is not a variable but in the calculation of time_until_target_time |
+### Load balancer
+| Variable              | Unit | Type                | Description                                                                |
+|-----------------------|------|---------------------|----------------------------------------------------------------------------|
+| `power_limit`         | W    | Parameter           | Maximum power consumption limit including charging.                        |
+| `power_limit_extended`| W    | Parameter           | [Optional] Maximum power allowed overcharge to reach SOC                   |
+| `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false]                               |
+
+### Charger
+| Variable              | Unit | Type                | Description                                                                |
+|-----------------------|------|---------------------|----------------------------------------------------------------------------|
+| `active_power`        | W    | Sensor              | Current active power of the charger to calculate charger efficiency.       |
+| `current`             | A    | Sensor [Input,output] | Active current of the charger.                                           |
+| `phases`              |      | Sensor [Input,output] | Active selected phases of the charger. ['1 Phase', '3 Phases']               |
+| `default_phases`      |      | Parameter           | Default phase selection to reset the charger after disconnecting. ['1 Phase', '3 Phases']         |
+| `max_current`         | A    | Parameter           | Miximum supported current of the charger.                                  |
+| `min_current`         | A    | Parameter           | Minimum supported current of the charger.                                  |
+| `default_current`     | A    | Parameter           | Default current to reset the charger of diconnecting.                      |
+| `nominal_voltage`     | V    | Parameter           | Nominal operating voltage of the charger.                                  |
+| `connection_state`    |      | Sensor              | Connection state of the changer. [Disconnected, Connected]                 |
+
+### Household
+| Variable              | Unit | Type                | Description                                                                |
+|-----------------------|------|---------------------|----------------------------------------------------------------------------|
+| `household_power`     | W    | Sensor              | Smoothed household power consumption excluding the charger.                |
+
+### Car
+Car configution is optional and only needed when car_aware is enabled in the load balancer
+
+| Variable              | Unit | Type                | Description                                                                |
+|-----------------------|------|---------------------|----------------------------------------------------------------------------|
+| `min_current`         | A    | Parameter           | Minimum supported car current.                                             |
+| `max_current`         | A    | Parameter           | Maximum supported car current.                                             |
+| `battery_percentage`  | %    | Sensor              | Current battery percentage of the car. [0%-100%]                           |
+| `battery_capacity_wh` | Wh   | Parameter           | Battery capacity of the car.                                               |
+| `soc_threshold`       | %    | Parameter           | Required battery percentage to reach by a set time. [0%-100%]              |
+| `target_time`         | Time [HH:SS] | Parameter   | Time by which the SOC threshold should be reached.                         |
+
 
 ![Image](https://github.com/user-attachments/assets/2717a963-ad2c-469a-9077-8368c776afb6)
 
@@ -122,20 +154,18 @@ Update the following variables in the script with your own helpers and sensors
 
 ![Image](https://github.com/user-attachments/assets/cf492018-cf80-4fbe-bc1d-b0f54fee5580)
 
-
 >[!Tip]
 >Once the monthly peak consumption passes the set power limit of the loadbalancer, you can increase this limit to the new monthly peak via an automation. Do not forget to reset this at the beginning of the month.
 
-## Future developments
-- :heavy_check_mark: Testing: Autocalculate charger efficiency
-- [ ] Make dependency on the car battery percentage optional, so others when another car charges, it is not depending on my car. This is also needed when another car is charging at my charger. 
--  :heavy_check_mark: Option to prioritze PV consumption
-- [ ] Optimize for dynamic energy contracts
-- :heavy_check_mark: Provide this in a Home Assistant package. 
-- [ ] Option to limit to 1 phase in Eco mode
-- [ ] A minimum charge power instead of switching the charger off. 
-- [ ] Convert to an HA integration
-
+## Future Developments
+- [x] Autocalculate charger efficiency.
+- [x] Make car awareness optional.
+- [ ] Option to prioritize PV consumption.
+- [ ] Optimize for dynamic energy contracts.
+- [x] Provide as generic a Home Assistant package.
+- [ ] Option to limit to 1 phase in Eco mode.
+- [ ] Implement a minimum charge power instead of switching off the charger.
+- [ ] Convert to a full Home Assistant integration.
 
 ## Disclaimer
-The use of this automation is at your own risk. The author assumes no responsibility for any consequences arising from the use of this automation, including but not limited to power consumption, the state of charge of the vehicle, or any damages that may result from its use. Users are advised to thoroughly test and verify the automation in their own environment before relying on it for critical operations.
+The use of this automation is at your own risk. The author assumes no responsibility for any consequences arising from its use, including power consumption, vehicle SOC, or damages. Test thoroughly in your environment before relying on it for critical operations.

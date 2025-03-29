@@ -16,6 +16,14 @@
 
 template:
   - sensor:
+      # Household settings
+      - name: "ev_load_balancer_household"
+        state: "{{ states('sensor.netto_verbruik_huis_lp') }}"
+        unique_id: ev_load_balancer_household
+        icon: mdi:home-lightning-bolt
+        attributes:
+          pv_power: "{{ states('sensor.sma_power_w') }}"
+      
       # Charger settings
       - name: "ev_load_balancer_charger"
         state: "Alfen Eve Pro Single"
@@ -23,10 +31,9 @@ template:
         icon: mdi:ev-station
         attributes:
           # Sensor references
-          home_power: "{{ states('sensor.netto_verbruik_huis_lp') }}"
           active_power: "{{ states('sensor.alfen_eve_active_power_total_socket_1') }}"
           current: "{{ states('number.alfen_eve_power_connector_max_current_socket_1') }}"
-          phase_select: "{{ states('select.alfen_eve_installation_max_allowed_phases') }}"
+          phases: "{{ states('select.alfen_eve_installation_max_allowed_phases') }}"
           # max_phases: "{{ 3 | int }}" for future development
           default_phases: "3 Phases"
           max_current: "{{ 16 | int }}"
@@ -55,7 +62,7 @@ template:
           time_sensor: "{{ states('input_datetime.ev_charge_time_target') }}"
           soc_threshold: "{{ states('input_number.ev_soc_threshold') | int(0)}}"
 
-      # Input entities
+      # Charger settings
       - name: "ev_load_balancer"
         state: "{{ states('input_select.ev_charge_mode') }}"
         unique_id: "ev_load_balancer_settings"
@@ -87,15 +94,15 @@ script:
           - alias: Set phases
             if:
               - condition: template
-                value_template: "{{ has_value('sensor.ev_load_balancer_charger.phase_select') }}"
+                value_template: "{{ has_value('sensor.ev_load_balancer_charger.phases') }}"
               - alias: If phase change
                 condition: template
-                value_template: "{{ phase != state_attr('sensor.ev_load_balancer_charger', 'phase_select') }}"
+                value_template: "{{ phase != state_attr('sensor.ev_load_balancer_charger', 'phases') }}"
             then:
               - action: system_log.write
                 data:
                   level: info
-                  message: "[Pkg] Changing phase from {{ state_attr('sensor.ev_load_balancer_charger', 'phase_select') }} to {{ phase }}"
+                  message: "[Pkg] Changing phase from {{ state_attr('sensor.ev_load_balancer_charger', 'phases') }} to {{ phase }}"
               - action: select.select_option
                 data:
                   option: "{{ phase }}"
@@ -127,7 +134,7 @@ script:
               # Allow the current change to settle
               - delay:
                   seconds: 10
-    description: Set the Alfen Eve Pro current and phase
+    description: Set the charger current and phase
     fields:
       phase:
         selector:
@@ -162,20 +169,22 @@ automation:
         seconds: /10
     conditions:
       - condition: template
-        value_template: "{{ state_attr('sensor.ev_load_balancer_charger','connection_state') == 'Connected' }}"
-        enabled: true
+        value_template: "{{ state_attr('sensor.ev_load_balancer_charger','connection_state') == 'Connected' if state_attr('sensor.ev_load_balancer_charger','connection_state') is not none else false }}"
       - condition: template
-        value_template: "{{ state_attr('sensor.ev_load_balancer_charger', 'phase_select') != 'unknown' and state_attr('sensor.ev_load_balancer_charger', 'current') != 'unknown' }}"
-        enabled: true
-
+        value_template: "{{ state_attr('sensor.ev_load_balancer_charger','phases') != 'unknown' and 
+                            state_attr('sensor.ev_load_balancer_charger','current') != 'unknown' }}"
+      - condition: template
+        value_template: "{{ state_attr('sensor.ev_load_balancer','power_limit') | int > 0 }}"
+      - condition: template
+        value_template: "{{ state_attr('sensor.ev_load_balancer_car', 'battery_percentage') | int < 100 if state_attr('sensor.ev_load_balancer', 'car_aware') else true }}"
     actions:
       - variables:
           # Get sensor states with proper attribute references
-          home_power: "{{ state_attr('sensor.ev_load_balancer_charger','home_power') | int(0) }}"
+          household_power: "{{ states('ev_load_balancer_household') | int(0) }}"
           charger_current: "{{ state_attr('sensor.ev_load_balancer_charger','current') | int(0) }}"
           charger_power: "{{ state_attr('sensor.ev_load_balancer_charger','active_power') | float(0) }}"
           charger_phases: >
-            {% set phase = state_attr('sensor.ev_load_balancer_charger','phase_select') %}
+            {% set phase = state_attr('sensor.ev_load_balancer_charger','phases') %}
             {{ phase if phase in ['1 Phase', '3 Phases'] else '1 Phase' }}
           power_limit_extended: "{{ state_attr('sensor.ev_load_balancer','power_limit_extended') | int }}"
           power_limit_normal: "{{ state_attr('sensor.ev_load_balancer','power_limit') | int }}"
@@ -220,7 +229,7 @@ automation:
 
           # Power calculations
           available_power: >
-            {% set power_left = (power_limit_normal - home_power) / charger_efficiency %}
+            {% set power_left = (power_limit_normal - household_power) / charger_efficiency %}
             {{ power_left if power_left > 0 else 0 }}
 
           phase_selection: "{{ 3 if available_power >= (nominal_voltage * min_current * 3) else 1 }}"
@@ -255,7 +264,7 @@ automation:
             {% endif %}
 
           adjusted_available_power_final: |
-            {% set power_left = (power_limit - home_power) / charger_efficiency %}
+            {% set power_left = (power_limit - household_power) / charger_efficiency %}
             {{ power_left if power_left > 0 else 0 }}
 
           adjusted_phase_selection: "{{ 3 if adjusted_available_power_final >= (nominal_voltage * min_current * 3) else 1 }}"

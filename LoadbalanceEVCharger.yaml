@@ -12,6 +12,10 @@ conditions:
     entity_id: sensor.alfen_eve_connection_state
     state: Connected
   - condition: template
+    value_template: >-
+      {{ (state_attr('automation.load_balance_ev_charging', 'current') == 0) |
+      bool }}
+  - condition: template
     value_template: "{{ has_value('select.alfen_eve_installation_max_allowed_phases') }}"
   - condition: template
     value_template: "{{ has_value('number.alfen_eve_power_connector_max_current_socket_1') }}"
@@ -52,8 +56,8 @@ actions:
           {{ 1.0 }}
         {% endif %}  
       available_power: >
-        {% set min_power_threshold = -(230 * min_current) | float %}
-        {% set pv_prioritized = true %}
+        {% set min_power_threshold = -(230 * min_current * 1.05) | float %} {%
+        set pv_prioritized = true %}
                 
         {% if pv_prioritized and home_power < min_power_threshold %}
           {{ ((states('sensor.sma_power_w') | float / charger_efficiency | float)) | int if states('sensor.sma_power_w') | int > 0 else 0 }}
@@ -61,10 +65,12 @@ actions:
           {% set power_left = ((max_combined_power_limit | float - home_power | float) / charger_efficiency | float) | int %}
           {{ power_left if power_left > 0 else 0 }}
         {% endif %}
-      phase_selection: "{{ 3 if available_power | float >= (230 * min_current * 3) | float else 1 }}"
+      phase_selection: >-
+        {{ 3 if available_power | float >= (230 * min_current * 3) | float else
+        1 }}
       current_limit: >
-        {% set current = (available_power | float / (230 * phase_selection | int)) | int %} 
-        {% if current < min_current | int %}
+        {% set current = (available_power | float / (230 * phase_selection |
+        int)) | int %}  {% if current < min_current | int %}
           0
         {% elif current > max_current | int %}
           {{ max_current }}
@@ -72,9 +78,11 @@ actions:
           {{ current }}
         {% endif %}
       estimated_battery_percentage: >
-        {% set charging_power = (current_limit | int * 230 * phase_selection | int) | float %}         
-        {% set added_energy = (charging_power * time_until_target_time | float) %}  
-        {{ (((battery_capacity_wh | float * battery_percentage | float / 100) + added_energy) / battery_capacity_wh | float) * 100 }}
+        {% set charging_power = (current_limit | int * 230 * phase_selection |
+        int) | float %}          {% set added_energy = (charging_power *
+        time_until_target_time | float) %}   {{ (((battery_capacity_wh | float *
+        battery_percentage | float / 100) + added_energy) / battery_capacity_wh
+        | float) * 100 }}
       power_limit: |
         {% if estimated_battery_percentage | int < soc_threshold | int %}
           {{ extended_power_limit }}
@@ -82,13 +90,22 @@ actions:
           {{ max_combined_power_limit }}
         {% endif %}
       adjusted_available_power_final: |
-        {% set power_left = (power_limit | float - home_power | float) / charger_efficiency | float %} 
-        {{ power_left if power_left > 0 else 0 }}
+        {% set min_power_threshold = -(230 * min_current * 1.05) | float %} 
+        {% set pv_prioritized = true %}
+                
+        {% if pv_prioritized and home_power < min_power_threshold %}
+          {{ ((states('sensor.sma_power_w') | float / charger_efficiency | float)) | int if states('sensor.sma_power_w') | int > 0 else 0 }}
+        {% else %}
+          {% set power_left = ((power_limit | float - home_power | float) / charger_efficiency | float) | int %}
+          {{ power_left if power_left > 0 else 0 }}
+        {% endif %}
       adjusted_phase_selection: >-
-        {{ 3 if adjusted_available_power_final | float >= (230 * min_current * 3) | float else 1 }}
+        {{ 3 if adjusted_available_power_final | float >= (230 * min_current *
+        3) | float else 1 }}
       adjusted_current_limit: >
         {% set current = (adjusted_available_power_final | float / (230 *
-        adjusted_phase_selection | int)) | int %} {% if current | int < min_current %}
+        adjusted_phase_selection | int)) | int %} {% if current | int <
+        min_current %}
           0
         {% elif current > max_current | int %}
           {{ max_current }}

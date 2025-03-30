@@ -20,33 +20,28 @@ sequence:
               {{ phase !=
               states('select.alfen_eve_installation_max_allowed_phases') }}
         then:
-          - action: system_log.write
-            data:
-              level: info
-              message: >-
-                Changing phase from {{
-                states('select.alfen_eve_installation_max_allowed_phases') }} to
-                {{ phase }}
-          - action: logbook.log
-            data:
-              message: >-
-                Changing phase from {{
-                states('select.alfen_eve_installation_max_allowed_phases') }} to
-                {{ phase }}
-              entity_id: select.alfen_eve_installation_max_allowed_phases
-              name: Alfen Phases
+          - variables:
+              max_delays: 60
           - action: select.select_option
             metadata: {}
             data:
               option: "{{ phase }}"
             target:
               entity_id: select.alfen_eve_installation_max_allowed_phases
-          - delay:
-              hours: 0
-              minutes: 1
-              seconds: 0
-              milliseconds: 0
-            enabled: true
+          - repeat:
+              sequence:
+                - delay:
+                    hours: 0
+                    minutes: 0
+                    seconds: 1
+                    milliseconds: 0
+                  enabled: true
+              until:
+                - condition: template
+                  value_template: >-
+                    {{
+                    states('sensor.alfen_eve_connector_1_max_allowed_of_phases')
+                    == phase or repeat.index >= max_delays }}
       - alias: Set current
         if:
           - condition: template
@@ -61,33 +56,28 @@ sequence:
               int }}
             enabled: true
         then:
-          - action: system_log.write
-            data:
-              level: info
-              message: >-
-                Changing current from {{
-                states('number.alfen_eve_power_connector_max_current_socket_1')
-                }} to {{ finalcurrent }}
-          - action: logbook.log
-            data:
-              message: >-
-                Changing current from {{
-                states('number.alfen_eve_power_connector_max_current_socket_1')
-                }} to {{ finalcurrent }}
-              entity_id: select.alfen_eve_installation_max_allowed_phases
-              name: Alfen Current
+          - variables:
+              max_delays: 30
           - action: number.set_value
             metadata: {}
             data:
               value: "{{ finalcurrent }}"
             target:
               entity_id: number.alfen_eve_power_connector_max_current_socket_1
-          - delay:
-              hours: 0
-              minutes: 0
-              seconds: 30
-              milliseconds: 0
-            enabled: true
+          - repeat:
+              sequence:
+                - delay:
+                    hours: 0
+                    minutes: 0
+                    seconds: 1
+                    milliseconds: 0
+                  enabled: true
+              until:
+                - condition: template
+                  value_template: >-
+                    {{
+                    states('sensor.alfen_eve_main_external_max_current_socket_1') | round(0)
+                    | int == finalcurrent | int or repeat.index >= max_delays }}
 description: Set the Alfen Eve Pro current and phase
 icon: mdi:ev-station
 fields:

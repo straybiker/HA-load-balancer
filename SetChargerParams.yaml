@@ -76,7 +76,7 @@ sequence:
                 - condition: template
                   value_template: >-
                     {{
-                    states('sensor.alfen_eve_main_external_max_current_socket_1')
+                    states('sensor.alfen_eve_main_external_max_current_socket_1') | round(0)
                     | int == finalcurrent | int or repeat.index >= max_delays }}
 description: Set the Alfen Eve Pro current and phase
 icon: mdi:ev-station

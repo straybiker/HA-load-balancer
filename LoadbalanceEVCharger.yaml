@@ -1,102 +1,121 @@
 alias: Load Balance EV Charging
-description: "Dynamic load balancing for EV charging with optional car-aware power management"
-trigger_variables:
-  params: !include cars/ev_loadbalancer_config.yaml
+description: ""
 triggers:
   - trigger: time_pattern
     seconds: /10
   - trigger: state
     entity_id:
-      - "{{ params.settings.charge_mode }}"
-      - "{{ params.settings.power_limit }}"
+      - input_select.ev_charge_mode
+      - input_number.ev_load_balancing_power_limit
 conditions:
-  - condition: state 
-    entity_id: "{{ params.charger.connection_state }}"
+  - condition: state
+    entity_id: sensor.alfen_eve_connection_state
     state: Connected
   - condition: template
-    value_template: "{{ has_value(params.charger.phase_select) }}"
+    value_template: >-
+      {{ (state_attr('automation.load_balance_ev_charging', 'current') == 0) |
+      bool }}
   - condition: template
-    value_template: "{{ has_value(params.charger.current) }}"
+    value_template: "{{ has_value('select.alfen_eve_installation_max_allowed_phases') }}"
+  - condition: template
+    value_template: "{{ has_value('number.alfen_eve_power_connector_max_current_socket_1') }}"
+  - condition: numeric_state
+    entity_id: sensor.ix3_m_sport_remaining_battery_percent
+    below: 100
 actions:
-  - service: script.get_charging_parameters
-    response_variable: params
   - variables:
-      # Sensor definitions
-      sensor_home_power: "{{ params.charger.home_power }}"
-      sensor_charger_current: "{{ params.charger.current }}"
-      sensor_charger_power: "{{ params.charger.active_power }}"
-      sensor_charger_phases: "{{ params.charger.phase_select }}"
-      
-      # Power settings
-      home_power: "{{ states(sensor_home_power) | int }}"
-      power_limit_normal: "{{ states(params.config.settings.power_limit) | int }}"
-      power_limit_extended: "{{ states(params.config.settings.power_limit_extended) | int }}"
-
-      # Car config
-      max_current: "{{ params.car_config.max_current if params.car_config else params.config.charger.max_current }}"
-      min_current: "{{ params.car_config.min_current if params.car_config else params.config.charger.min_current }}"
-
-      # Charger efficiency calculation
+      home_power: "{{ states('sensor.netto_verbruik_huis_lp') | int }}"
+      max_combined_power_limit: "{{ states('input_number.ev_load_balancing_power_limit') | int }}"
+      extended_power_limit: "{{ states('input_number.ev_load_balancer_extended_power_limit') | int }}"
+      max_current: "{{ 16 | int }}"
+      min_current: "{{ 6 | int }}"
+      battery_percentage: "{{ states('sensor.ix3_m_sport_remaining_battery_percent') | int(100) }}"
+      time_until_target_time: >
+        {% set now = now() %}    {% set target_time =
+        states('input_datetime.ev_charge_time_target') %}   {% set target_hour =
+        target_time[0:2] | int %}    {% set target_minute = target_time[3:5] |
+        int %}  {% set target_datetime = now.replace(hour=target_hour,
+        minute=target_minute, second=0, microsecond=0) %}   {% if
+        target_datetime < now %}  {% set target_datetime = target_datetime +
+        timedelta(days=1) %}   {% endif %}  {% set time_diff = (target_datetime
+        - now).total_seconds() / 3600 %}   {{ time_diff | round(2) | float }}
+      battery_capacity_wh: "{{ states('input_number.ev_battery_capacity') | int }}"
+      soc_threshold: "{{ states('input_number.ev_soc_threshold') | int }}"
       charger_efficiency: >
-        {% set current_phase = 3 if states(sensor_charger_phases) == "3 Phases" else 1 %}   
-        {% if (states(sensor_charger_current) | int > 0) and (states(sensor_charger_power) | float > 1000.0) %}   
-          {{ states(sensor_charger_power) | float / (states(sensor_charger_current) | int * 230 * current_phase) | float }} 
+        {% set current_phase = 3 if
+        states('select.alfen_eve_installation_max_allowed_phases') == "3 Phases"
+        else 1 %}   
+
+        {% if
+          (states('number.alfen_eve_power_connector_max_current_socket_1') | int > 0) and 
+          (states('sensor.alfen_eve_active_power_total_socket_1') | float > 1000.0) %}   
+            {{ states('sensor.alfen_eve_active_power_total_socket_1') | float /
+              (states('number.alfen_eve_power_connector_max_current_socket_1') | int * 230 * current_phase) | float 
+            }} 
         {% else %} 
           {{ 1.0 }}
-        {% endif %}
-
-      # Power calculations
+        {% endif %}  
       available_power: >
-        {% set power_left = (power_limit_normal - home_power) / charger_efficiency %}
-        {{ power_left if power_left > 0 else 0 }}
-      phase_selection: "{{ 3 if available_power >= (230 * min_current * 3) else 1 }}"
+        {% set min_power_threshold = -(230 * min_current * 1.05) | float %} {%
+        set pv_prioritized = true %}
+                
+        {% if pv_prioritized and home_power < min_power_threshold %}
+          {{ ((states('sensor.sma_power_w') | float / charger_efficiency | float)) | int if states('sensor.sma_power_w') | int > 0 else 0 }}
+        {% else %}
+          {% set power_left = ((max_combined_power_limit | float - home_power | float) / charger_efficiency | float) | int %}
+          {{ power_left if power_left > 0 else 0 }}
+        {% endif %}
+      phase_selection: >-
+        {{ 3 if available_power | float >= (230 * min_current * 3) | float else
+        1 }}
       current_limit: >
-        {% set current = (available_power / (230 * phase_selection)) | int %}
-        {% if current | int < min_current %}
+        {% set current = (available_power | float / (230 * phase_selection |
+        int)) | int %}  {% if current < min_current | int %}
           0
-        {% elif current > max_current %}
+        {% elif current > max_current | int %}
           {{ max_current }}
         {% else %}
           {{ current }}
         {% endif %}
-
-      # Battery state estimation
       estimated_battery_percentage: >
-        {% if params.car_config %}
-          {% set charging_power = (current_limit * 230 * phase_selection) | float %}
-          {% set added_energy = (charging_power * params.car.time_until_target_time | float) %}
-          {{ (((params.car_config.battery_capacity_wh * params.car.battery_percentage / 100) + added_energy) / params.car_config.battery_capacity_wh) * 100 }}
-        {% else %}
-          {{ 100 }}
-        {% endif %}
-
-      # Final power adjustments
+        {% set charging_power = (current_limit | int * 230 * phase_selection |
+        int) | float %}          {% set added_energy = (charging_power *
+        time_until_target_time | float) %}   {{ (((battery_capacity_wh | float *
+        battery_percentage | float / 100) + added_energy) / battery_capacity_wh
+        | float) * 100 }}
       power_limit: |
-        {% if params.car_config and estimated_battery_percentage | int < params.car.soc_threshold %}
-          {{ power_limit_extended }}
+        {% if estimated_battery_percentage | int < soc_threshold | int %}
+          {{ extended_power_limit }}
         {% else %}
-          {{ power_limit_normal }}
+          {{ max_combined_power_limit }}
         {% endif %}
       adjusted_available_power_final: |
-        {% set power_left = (power_limit - home_power) / charger_efficiency %}
-        {{ power_left if power_left > 0 else 0 }}
+        {% set min_power_threshold = -(230 * min_current * 1.05) | float %} 
+        {% set pv_prioritized = true %}
+                
+        {% if pv_prioritized and home_power < min_power_threshold %}
+          {{ ((states('sensor.sma_power_w') | float / charger_efficiency | float)) | int if states('sensor.sma_power_w') | int > 0 else 0 }}
+        {% else %}
+          {% set power_left = ((power_limit | float - home_power | float) / charger_efficiency | float) | int %}
+          {{ power_left if power_left > 0 else 0 }}
+        {% endif %}
       adjusted_phase_selection: >-
-        {{ 3 if adjusted_available_power_final >= (230 * min_current * 3) else 1 }}
+        {{ 3 if adjusted_available_power_final | float >= (230 * min_current *
+        3) | float else 1 }}
       adjusted_current_limit: >
-        {% set current = (adjusted_available_power_final / (230 * adjusted_phase_selection)) | int %}
-        {% if current | int < min_current %}
+        {% set current = (adjusted_available_power_final | float / (230 *
+        adjusted_phase_selection | int)) | int %} {% if current | int <
+        min_current %}
           0
-        {% elif current > max_current %}
+        {% elif current > max_current | int %}
           {{ max_current }}
         {% else %}
           {{ current }}
         {% endif %}
-
-  # Charging mode selection
   - choose:
       - conditions:
           - condition: state
-            entity_id: "{{ params.settings.charge_mode }}"
+            entity_id: input_select.ev_charge_mode
             state: "Off"
         sequence:
           - action: script.set_pv_charging_parameter
@@ -108,8 +127,8 @@ actions:
               entity_id: script.set_pv_charging_parameter
       - conditions:
           - condition: state
-            entity_id: "{{ params.settings.charge_mode }}"
-            state: "Minimal 1.4kW"
+            entity_id: input_select.ev_charge_mode
+            state: Minimal 1.4kW
         sequence:
           - action: script.set_pv_charging_parameter
             metadata: {}
@@ -120,8 +139,8 @@ actions:
               entity_id: script.set_pv_charging_parameter
       - conditions:
           - condition: state
-            entity_id: "{{ params.settings.charge_mode }}"
-            state: "Minimal 4kW"
+            entity_id: input_select.ev_charge_mode
+            state: Minimal 4kW
         sequence:
           - action: script.set_pv_charging_parameter
             metadata: {}
@@ -132,8 +151,8 @@ actions:
               entity_id: script.set_pv_charging_parameter
       - conditions:
           - condition: state
-            entity_id: "{{ params.settings.charge_mode }}"
-            state: "Fast"
+            entity_id: input_select.ev_charge_mode
+            state: Fast
         sequence:
           - action: script.set_pv_charging_parameter
             metadata: {}
@@ -144,8 +163,8 @@ actions:
               entity_id: script.set_pv_charging_parameter
       - conditions:
           - condition: state
-            entity_id: "{{ params.settings.charge_mode }}"
-            state: "Eco"
+            entity_id: input_select.ev_charge_mode
+            state: Eco
         sequence:
           - action: script.set_pv_charging_parameter
             metadata: {}
@@ -155,4 +174,3 @@ actions:
             target:
               entity_id: script.set_pv_charging_parameter
 mode: single
-icon: mdi:scale-balance

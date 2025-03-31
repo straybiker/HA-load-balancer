@@ -10,8 +10,11 @@
 
 ###################################################################################
 ## CONFIGURATION
-## Update the following configuration to match your setup
+## Update the following configuration to match your setup. All settings are stored
+## in attributes to simulate devices. Check the documentation for more details.
+##
 ## Set car_aware to true to enable car-aware power management
+## Set pv_aware to true to enable PV-aware power management
 ###################################################################################
 
 template:
@@ -32,12 +35,12 @@ template:
         unique_id: ev_load_balancer_charger
         icon: mdi:ev-station
         attributes:
-          # Sensor references
+          # note the definition of the output variables
           active_power: "{{ states('sensor.alfen_eve_active_power_total_socket_1') }}"
-          current_input: "{{ states('sensor.alfen_eve_power_connector_max_current_socket_1') }}"
-          current_output: "{{ states('number.alfen_eve_power_connector_max_current_socket_1') }}"
-          phases_input: "{{ states('sensor.alfen_eve_installation_max_allowed_phases') }}"
-          phases_output: "{{ states('select.alfen_eve_installation_max_allowed_phases') }}"
+          current_input: "{{ states('sensor.alfen_eve_main_active_max_current_socket_1') }}"
+          current_output: number.alfen_eve_power_connector_max_current_socket_1
+          phases_input: "{{ states('sensor.alfen_eve_connector_1_max_allowed_of_phases') }}"
+          phases_output: select.alfen_eve_installation_max_allowed_phases
           # max_phases: "{{ 3 | int }}" for future development
           default_phases: "3 Phases"
           max_current: "{{ 16 | int }}"
@@ -98,24 +101,24 @@ script:
           - alias: Set phases
             if:
               - condition: template
-                value_template: "{{ has_value('sensor.ev_load_balancer_charger.phases_output') }}"
+                value_template: "{{ has_value( state_attr('sensor.ev_load_balancer_charger','phases_output')) }}"
               - alias: If phase change
                 condition: template
-                value_template: "{{ phase != state_attr('sensor.ev_load_balancer_charger', 'phases_output') }}"
+                value_template: "{{ phase != states( state_attr('sensor.ev_load_balancer_charger','phases_output')) }}"
             then:
               - variables:
                 max_delays: 60
               - action: system_log.write
                 data:
                   level: info
-                  message: "[Pkg] Changing phase from {{ state_attr('sensor.ev_load_balancer_charger', 'phases') }} to {{ phase }}"
+                  message: "[Pkg] Changing phase from {{ state_attr('sensor.ev_load_balancer_charger', 'phases_input') }} to {{ phase }}"
               - action: select.select_option
                 data:
                   option: "{{ phase }}"
                 target:
-                  entity_id: "{{ select.alfen_eve_installation_max_allowed_phases }}"
+                  entity_id: "{{ state_attr('sensor.ev_load_balancer_charger','phases_output') }}"
                 enabled: false
-              # Allow the relay switching to complete and stabilize
+              # Allow the relay switching to complete and stabilize or until timeout
               - repeat:
                   sequence:
                     - delay:
@@ -127,15 +130,15 @@ script:
                   until:
                     - condition: template
                       value_template: >-
-                        {{ states('sensor.alfen_eve_connector_1_max_allowed_of_phases') == phase or 
-                          repeat.index >= max_delays }}
+                        {{ (state_attr('sensor.ev_load_balancer_charger', 'phases') == phase) or 
+                          (repeat.index >= max_delays) }}
                 enabled: true
           - alias: Set current
             if:
               - condition: template
-                value_template: "{{ has_value('sensor.ev_load_balancer_charger.current') }}"
+                value_template: "{{ has_value( state_attr('sensor.ev_load_balancer_charger','current_output')) }}"
               - condition: template
-                value_template: "{{ finalcurrent | int != state_attr('sensor.ev_load_balancer_charger','current') | int }}"
+                value_template: "{{ finalcurrent | int != states( state_attr('sensor.ev_load_balancer_charger','current_output')) | int }}"
                 enabled: true
             then:
               - variables:
@@ -143,14 +146,14 @@ script:
               - action: system_log.write
                 data:
                   level: info
-                  message: "[Pkg] Changing current from {{ states(charger.current) }} to {{ finalcurrent }}"
+                  message: "[Pkg] Changing current from {{ state_attr('sensor.ev_load_balancer_charger', 'current_input') }} to {{ finalcurrent }}"
               - action: number.set_value
                 data:
                   value: "{{ finalcurrent }}"
                 target:
-                  entity_id: "{{ number.alfen_eve_power_connector_max_current_socket_1 }}"
+                  entity_id: "{{ state_attr('sensor.ev_load_balancer_charger','current_output') }}"
                 enabled: false
-              # Allow the current change to settle
+              # Allow the current change to settle or until timeout
               - repeat:
                   sequence:
                     - delay:
@@ -162,8 +165,8 @@ script:
                   until:
                     - condition: template
                       value_template: >-
-                        {{ states('sensor.alfen_eve_main_external_max_current_socket_1') | int == finalcurrent | int or 
-                          repeat.index >= max_delays }}
+                        {{ (state_attr('sensor.ev_load_balancer_charger','current') | int == finalcurrent | int) or 
+                          (repeat.index >= max_delays) }}
     description: Set the charger current and phase
     fields:
       phase:
@@ -211,8 +214,8 @@ automation:
           {{ (state_attr('sensor.ev_load_balancer_car', 'battery_percentage') | int < 100) | bool if car_aware else true }}
       - condition: template
         value_template: |-  
-          {{ state_attr('sensor.ev_load_balancer_charger','phases_output') != 'unknown' and 
-            state_attr('sensor.ev_load_balancer_charger','current_output') != 'unknown' }}
+          {{ has_value( state_attr('sensor.ev_load_balancer_charger','phases_output')) and 
+             has_value( state_attr('sensor.ev_load_balancer_charger','current_output')) }}
       - condition: template
         value_template: "{{ state_attr('sensor.ev_load_balancer','power_limit') | int > 0 }}"
     actions:

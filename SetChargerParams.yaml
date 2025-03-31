@@ -19,7 +19,7 @@ sequence:
             value_template: "{{ phase != states(config.charger.phase_select) }}"
         then:
           - variables:
-              max_delays: 60
+              max_delays_phase: 60
           - action: select.select_option
             data:
               option: "{{ phase }}"
@@ -35,10 +35,8 @@ sequence:
                   enabled: true
               until:
                 - condition: template
-                  value_template: >-
-                    {{
-                    states('sensor.alfen_eve_connector_1_max_allowed_of_phases')
-                    == phase or repeat.index >= max_delays }}
+                  value_template: |-
+                    {{ (states('sensor.alfen_eve_connector_1_max_allowed_of_phases') == phase) or (repeat.index >= max_delays_phase) }}
       - alias: Set current
         if:
           - condition: template
@@ -48,7 +46,7 @@ sequence:
             enabled: true
         then:
           - variables:
-              max_delays: 30
+              max_delays_current: 60
           - action: number.set_value
             data:
               value: "{{ finalcurrent }}"
@@ -64,10 +62,9 @@ sequence:
                   enabled: true
               until:
                 - condition: template
-                  value_template: >-
-                    {{
-                    states('sensor.alfen_eve_main_external_max_current_socket_1')
-                    | int == finalcurrent | int or repeat.index >= max_delays }}
+                  value_template: |-
+                    {{ (states('sensor.alfen_eve_main_external_max_current_socket_1') | round(0) | int == finalcurrent | int) or 
+                       (repeat.index >= max_delays_current) }}
 description: Set the Alfen Eve Pro current and phase
 icon: mdi:ev-station
 fields:

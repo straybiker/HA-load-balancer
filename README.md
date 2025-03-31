@@ -1,6 +1,8 @@
 # Home Assistant car charging load balancer automation 
 Car charging load balancer for Home Assistant tailored to Belgian energy regulation (Capaciteitstarief).
 
+>[!IMPORTANT]
+> Home Asssistant 2025.4 will probably break these automations and scripts. Check the [breaking changes](https://rc.home-assistant.io/blog/2025/03/26/release-20254/#backward-incompatible-changes)
 
 
 ## Table of Contents

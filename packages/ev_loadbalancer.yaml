@@ -97,6 +97,7 @@ script:
     sequence:
       - variables:
           finalcurrent: "{{ 0 if current < min_current else current }}"
+          phase: "{{ '3 Phases' if phase = 3 else '1 Phase' }}"
       - parallel:
           - alias: Set phases
             if:
@@ -173,8 +174,8 @@ script:
         selector:
           select:
             options:
-              - 1 Phase
-              - 3 Phases
+              - 1
+              - 3
             multiple: false
         name: phase
         required: false
@@ -226,13 +227,11 @@ automation:
           charger_current_input: "{{ state_attr('sensor.ev_load_balancer_charger','current_input') | int(0) }}"
           charger_power: "{{ state_attr('sensor.ev_load_balancer_charger','active_power') | float(0) }}"
 
-          charger_phases_input: >
-            {% set phase = state_attr('sensor.ev_load_balancer_charger','phases_input') %}
-            {{ phase if phase in ['1 Phase', '3 Phases'] else '1 Phase' }}
+          charger_phases_input: "{{ state_attr('sensor.ev_load_balancer_charger','phases_input') | int(1) }}"
 
           power_limit_extended: "{{ state_attr('sensor.ev_load_balancer','power_limit_extended') | int }}"
           power_limit_normal: "{{ state_attr('sensor.ev_load_balancer','power_limit') | int }}"
-          nominal_voltage: "{{ state_attr('sensor.ev_load_balancer_charger','nominal_voltage') | int }}"
+          nominal_voltage: "{{ state_attr('sensor.ev_load_balancer_charger','nominal_voltage') | int(230) }}"
 
           car_aware: "{{ state_attr('sensor.ev_load_balancer', 'car_aware') | bool }}"
 
@@ -327,7 +326,7 @@ automation:
                 metadata: {}
                 data:
                   current: 0
-                  phase: 3 Phases
+                  phase: 3
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
@@ -338,7 +337,7 @@ automation:
                 metadata: {}
                 data:
                   current: 6
-                  phase: 1 Phase
+                  phase: 1
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
@@ -349,7 +348,7 @@ automation:
                 metadata: {}
                 data:
                   current: 6
-                  phase: 3 Phases
+                  phase: 3
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
@@ -360,7 +359,7 @@ automation:
                 metadata: {}
                 data:
                   current: 16
-                  phase: 3 Phases
+                  phase: 3
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
@@ -371,7 +370,7 @@ automation:
                 metadata: {}
                 data:
                   current: "{{ adjusted_current_limit | int }}"
-                  phase: "{{ '1 Phase' if adjusted_phase_selection == 1 else '3 Phases' }}"
+                  phase: "{{ adjusted_phase_selection }}"
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
     mode: single

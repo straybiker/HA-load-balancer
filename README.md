@@ -107,24 +107,24 @@ Update the following variables in the script with your own sensors and parameter
 ### Load balancer
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
+| `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false]                               |
 | `power_limit`         | W    | Parameter           | Maximum power consumption limit including charging.                        |
 | `power_limit_extended`| W    | Parameter           | [Optional] Maximum power allowed overcharge to reach SOC                   |
-| `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false]                               |
 
 ### Charger
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
 | `active_power`        | W    | Sensor              | Current active power of the charger to calculate charger efficiency.       |
+| `connection_state`    |      | Sensor              | Connection state of the changer. [Disconnected, Connected]                 |
 | `current_input`       | A    | Sensor              | Active current of the charger.                                             |
-| `phases_input`        |      | Sensor              | Active selected phases of the charger. ['1 Phase', '3 Phases']             |
 | `current_output`      | A    | Output entity       | Current setting of the charger.                                            |
-| `phases_output`       |      | Output entity       | Phases setting of the charger. ['1 Phase', '3 Phases']                     |
+| `default_current`     | A    | Parameter           | Default current to reset the charger of diconnecting.                      |
 | `default_phases`      |      | Parameter           | Default phase selection to reset the charger after disconnecting. ['1 Phase', '3 Phases']         |
 | `max_current`         | A    | Parameter           | Miximum supported current of the charger.                                  |
 | `min_current`         | A    | Parameter           | Minimum supported current of the charger.                                  |
-| `default_current`     | A    | Parameter           | Default current to reset the charger of diconnecting.                      |
 | `nominal_voltage`     | V    | Parameter           | Nominal operating voltage of the charger.                                  |
-| `connection_state`    |      | Sensor              | Connection state of the changer. [Disconnected, Connected]                 |
+| `phases_input`        |      | Sensor              | Active selected phases of the charger. ['1 Phase', '3 Phases']             |
+| `phases_output`       |      | Output entity       | Phases setting of the charger. ['1 Phase', '3 Phases']                     |
 
 ### Household
 | Variable              | Unit | Type                | Description                                                                |

@@ -11,9 +11,6 @@ Car charging load balancer for Home Assistant tailored to Belgian energy regulat
 - [Configuration and Helpers](#configuration-and-helpers)
 - [Future Developments](#future-developments)
 - [Disclaimer](#disclaimer)
-- [License](#license)
-- [Contributing](#contributing)
-- [Contact](#contact)
 
 ## Introduction
 This Home Assistant automation provides intelligent load balancing for EV charging, designed to minimize energy costs and avoid exceeding your maximum power limit (capaciteitspiek) under Belgian energy regulations. By dynamically adjusting the charging current based on your household's power consumption, this system helps you charge your EV efficiently without overloading your electrical grid.

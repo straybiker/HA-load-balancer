@@ -37,8 +37,11 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
 - **Household power consumption sensor** excluding charger power consumption. 
 
 ## Installation
-### Step 1: Create Helpers
-Helpers can be created via the Home Assistant UI or hardcoded in the configuration. See [Configuration and Helpers](#configuration-and-helpers) for details.
+### Step 1: Package Installation
+Follow the [Home Assistant package documentation](https://www.home-assistant.io/docs/configuration/packages/) for installation details. The package file is located in the `package` folder.
+
+### Step 2: Create Helpers
+Create helper for parameters that you want to control from the UI. See [Configuration and Helpers](#configuration-and-helpers) for details.
 
 #### Mandatory Helpers
 - **Input number**: Maximum total power limit.
@@ -66,8 +69,31 @@ Helpers can be created via the Home Assistant UI or hardcoded in the configurati
 > ```
 > Here, `sensor.netto_verbruik_huis` is the raw household power consumption, and `netto_verbruik_huis_lp` is the filtered value used by the load balancer.
 
-### Step 2: Package Installation
-Follow the [Home Assistant package documentation](https://www.home-assistant.io/docs/configuration/packages/) for installation details. The package file is located in the `package` folder.
+### Step 3: Configuration
+Update the configuration section to your specific setup and check the configuration from the developer YAML section.
+If you don't need Car Aware functionality, the settings in the car configuration can be emptied
+
+> [!TIP]
+> For PV aware charging, use a low-pass filter to prevent excesive switching by cloud coverage. Example configuration:
+> ```yaml
+> platform: filter
+> name: "PV Power LP"
+> unique_id: pv_power_lp
+> entity_id: sensor.sma_power_w
+> filters:
+>   - filter: outlier
+>     window_size: 3
+>     radius: 1000.0
+>   - filter: lowpass
+>     time_constant: 5
+>     precision: 0
+> ```
+
+### Step 4: Update script
+The script to set the charger parameters currently supports the Alfen Eve Pro Single charger. Update the script to the outputs according to your charger.
+
+### Step 5: Reload
+Restart Home Assistant or reload templates, scripts and automations from the developer YAML section
 
 ## Details
 This load balancer checks every 10 seconds the current household power consumption and sets the Alfen Wallbox charging parameters, phase and current, according to the remaining available power. The total allowed power to use (capaciteitspiek), household + EV charger, is defined in an input helper parameter.

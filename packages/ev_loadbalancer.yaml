@@ -20,9 +20,9 @@
 template:
   - sensor:
       # Household settings
-      - name: "ev_load_balancer_household"
+      - name: "EV Load Balancer House"
         state: "{{ states('sensor.netto_verbruik_huis_lp') | int }}"
-        unique_id: ev_load_balancer_household
+        unique_id: ev_load_balancer_house
         icon: mdi:home-lightning-bolt
         device_class: power
         unit_of_measurement: "W"
@@ -30,7 +30,7 @@ template:
           pv_power: "{{ states('sensor.sma_power_w') }}"
 
       # Charger settings
-      - name: "ev_load_balancer_charger"
+      - name: "EV Load Balancer Charger"
         state: "Alfen Eve Pro Single"
         unique_id: ev_load_balancer_charger
         icon: mdi:ev-station
@@ -56,7 +56,7 @@ template:
             {% endif %}
 
       # Cars settings
-      - name: "ev_load_balancer_car"
+      - name: "EV Load Balancer Car"
         state: "BMW ix3"
         unique_id: ev_load_balancer_car
         icon: mdi:car-electric
@@ -70,7 +70,7 @@ template:
           soc_threshold: "{{ states('input_number.ev_soc_threshold') | int(0)}}"
 
       # Charger settings
-      - name: "ev_load_balancer"
+      - name: "EV Load Balancer"
         state: "{{ states('input_select.ev_charge_mode') }}"
         unique_id: "ev_load_balancer_settings"
         # Power settings

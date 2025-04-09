@@ -1,0 +1,471 @@
+# Package configuration for EV load balancing
+# Check the documentation for more details: https://github.com/straybiker/HA-load-balancer
+
+###################################################################################
+## CONFIGURATION
+## Update the following configuration to match your setup. All settings are stored
+## in attributes to simulate devices. Check the documentation for more details.
+##
+## Set car_aware to true to enable car-aware power management
+## Set pv_prioritized to true to enable PV-aware power management
+###################################################################################
+
+template:
+  - sensor:
+      # Household settings
+      - unique_id: ev_loadbalancer_house
+        name: "EV Load Balancer House"
+        state: "{{ states('sensor.netto_verbruik_huis_lp') | int }}"
+        icon: mdi:home-lightning-bolt
+        device_class: power
+        unit_of_measurement: "W"
+        attributes:
+          pv_power: "{{ states('sensor.sma_power_w') }}"
+
+      # Charger settings
+      - unique_id: ev_loadbalancer_charger
+        name: "EV Load Balancer Charger"
+        state: "Alfen Eve Pro Single"
+        icon: mdi:ev-station
+        attributes:
+          # note the definition of the output variables
+          active_power: "{{ states('sensor.alfen_eve_active_power_total_socket_1') }}"
+          current_input: "{{ states('sensor.alfen_eve_main_active_max_current_socket_1') }}"
+          current_output: number.alfen_eve_power_connector_max_current_socket_1
+          phases_input: "{{ states('sensor.alfen_eve_connector_1_max_allowed_of_phases') }}"
+          phases_output: select.alfen_eve_installation_max_allowed_phases
+          # max_phases: "{{ 3 | int }}" for future development
+          default_phases: "3 Phases"
+          max_current: "{{ 16 | int }}"
+          min_current: "{{ 6 | int }}"
+          default_current: "{{ 16 | int }}"
+          nominal_voltage: "{{ 230 | int }}"
+          connection_state: >
+            {% set m3 = states('sensor.alfen_eve_mode3_state_socket_1') %}
+            {% if m3 in ['STATE_A', 'STATE_E'] %} Disconnected
+            {% elif m3 in ['STATE_B1', 'STATE_B2', 'STATE_C1', 'STATE_D1', 'STATE_C2', 'STATE_D2'] %} Connected
+            {% elif m3 in ['STATE_F'] %} Error
+            # {% else %} unavailable
+            {% endif %}
+
+      # Cars settings
+      - unique_id: ev_loadbalancer_car
+        name: "EV Load Balancer Car"
+        state: "BMW iX3"
+        icon: mdi:car-electric
+        # Required parameters
+        attributes:
+          max_current: "{{ 16 | int }}"
+          min_current: "{{ 6 | int }}"
+          battery_capacity_wh: "{{ 80000 | int }}"
+          battery_percentage: "{{states('sensor.ix3_m_sport_remaining_battery_percent') | int(100)}}"
+          soc_time: "{{ states('input_datetime.ev_loadbalancer_charge_time_target') }}"
+          soc_threshold: "{{ states('input_number.ev_loadbalancer_soc_threshold') | int(0)}}"
+
+      # Load balancer settings
+      - unique_id: ev_loadbalancer
+        name: "EV Load Balancer"
+        state: "{{ states('input_select.ev_loadbalancer_charge_mode') }}"
+        # Power settings
+        attributes:
+          power_limit: "{{ states('input_number.ev_loadbalancer_power_limit') | int }}"
+          power_limit_extended: "{{ states('input_number.ev_loadbalancer_extended_power_limit') | int }}"
+          car_aware: "{{ states('input_boolean.ev_loadbalancer_car_aware') | bool }}"
+          pv_prioritized: "{{ states('input_boolean.ev_loadbalancer_pv_prioritized') | bool }}"
+
+###################################################################################
+## END CONFIGURATION
+###################################################################################
+
+###################################################################################
+## INPUTS
+## Helper definitions for the load balancer. These can be controlled via the UI.
+## If no control from the UI is needed, the settings can be hardcoded in the
+## configuration section above.
+###################################################################################
+
+input_select:
+  ## Mandatory input
+  ev_loadbalancer_charge_mode:
+    name: EV Load Balancer Charge Mode
+    icon: mdi:ev-station
+    options:
+      - "Off"
+      - "Minimal 1.4kW"
+      - "Minimal 4kW"
+      - "Eco"
+      - "Fast"
+
+input_boolean:
+  ## Mandatory input
+  ev_loadbalancer_pv_prioritized:
+    name: EV Load Balancer Prioritized
+    icon: mdi:solar-power
+    initial: true
+
+  ev_loadbalancer_car_aware:
+    ## Mandatory input
+    name: EV Load Balancer Car Aware
+    icon: mdi:car-electric
+    initial: true
+
+input_number:
+  ## Mandatory input
+  ev_loadbalancer_power_limit:
+    name: EV Load Balancer Power Limit
+    icon: mdi:flash
+    mode: slider
+    unit_of_measurement: W
+    min: 1500
+    max: 12000
+    step: 200
+
+  ## Optional input: can be removed if car aware is not used
+  ev_loadbalancer_extended_power_limit:
+    name: EV Load Balancer Extended Power Limit
+    icon: mdi:flash
+    mode: slider
+    unit_of_measurement: W
+    min: 1500
+    max: 12000
+    step: 200
+
+  ## Optional input: can be removed if car aware is not used
+  ev_loadbalancer_soc_threshold:
+    name: EV Load Balancer SOC Threshold
+    icon: mdi:battery-charging-80
+    mode: slider
+    unit_of_measurement: "%"
+    min: 0
+    max: 100
+    step: 1
+
+input_datetime:
+  ## Optional input: can be removed if car aware is not used
+  ev_loadbalancer_charge_time_target:
+    name: EV Load Balancer Charge Time Target
+    icon: mdi:clock-time-four-outline
+    has_date: false
+    has_time: true
+
+###################################################################################
+## END INPUTS
+###################################################################################
+
+script:
+  ev_loadbalancer_set_charger_params:
+    alias: Set EV load balancer charger parameter
+    variables:
+      charger: "{{ states('sensor.ev_loadbalancer_charger') }}"
+      car_aware: "{{ state_attr('sensor.ev_loadbalancer', 'car_aware') }}"
+      min_current: >
+        {% set charger_min_current = state_attr('sensor.ev_loadbalancer_charger', 'min_current') %}
+        {% set car_min_current = state_attr('sensor.ev_loadbalancer_car', 'min_current') %}
+        {{ [car_min_current if car_aware else charger_min_current, charger_min_current] | max }}
+    sequence:
+      - variables:
+          finalcurrent: "{{ 0 if current < min_current else current }}"
+          phase: "{{ '3 Phases' if phase == 3 else '1 Phase' }}"
+      - parallel:
+          - alias: Set phases
+            if:
+              - condition: template
+                value_template: "{{ has_value( state_attr('sensor.ev_loadbalancer_charger','phases_output')) }}"
+              - alias: If phase change
+                condition: template
+                value_template: "{{ phase != states( state_attr('sensor.ev_loadbalancer_charger','phases_output')) }}"
+            then:
+              - variables:
+                  max_delays: 60
+              - action: system_log.write
+                data:
+                  level: info
+                  message: "[Pkg] Changing phase from {{ state_attr('sensor.ev_loadbalancer_charger', 'phases_input') }} to {{ phase }}"
+              - action: select.select_option
+                data:
+                  option: "{{ phase }}"
+                target:
+                  entity_id: "{{ state_attr('sensor.ev_loadbalancer_charger','phases_output') }}"
+                enabled: false
+              # Allow the relay switching to complete and stabilize or until timeout
+              - repeat:
+                  sequence:
+                    - delay:
+                        hours: 0
+                        minutes: 0
+                        seconds: 1
+                        milliseconds: 0
+                      enabled: true
+                  until:
+                    - condition: template
+                      value_template: >-
+                        {{ (state_attr('sensor.ev_loadbalancer_charger', 'phases_input') == phase) or 
+                          (repeat.index >= max_delays) }}
+                enabled: true
+          - alias: Set current
+            if:
+              - condition: template
+                value_template: "{{ has_value( state_attr('sensor.ev_loadbalancer_charger','current_output')) }}"
+              - condition: template
+                value_template: "{{ finalcurrent | int != states( state_attr('sensor.ev_loadbalancer_charger','current_output')) | int }}"
+                enabled: true
+            then:
+              - variables:
+                  max_delays: 30
+              - action: system_log.write
+                data:
+                  level: info
+                  message: "[Pkg] Changing current from {{ state_attr('sensor.ev_loadbalancer_charger', 'current_input') }} to {{ finalcurrent }}"
+              - action: number.set_value
+                data:
+                  value: "{{ finalcurrent }}"
+                target:
+                  entity_id: "{{ state_attr('sensor.ev_loadbalancer_charger','current_output') }}"
+                enabled: false
+              # Allow the current change to settle or until timeout
+              - repeat:
+                  sequence:
+                    - delay:
+                        hours: 0
+                        minutes: 0
+                        seconds: 1
+                        milliseconds: 0
+                      enabled: true
+                  until:
+                    - condition: template
+                      value_template: >-
+                        {{ (state_attr('sensor.ev_loadbalancer_charger','current_input') | int == finalcurrent | int) or 
+                          (repeat.index >= max_delays) }}
+    description: Set the charger current and phase
+    fields:
+      phase:
+        selector:
+          select:
+            options:
+              - "1"
+              - "3"
+            multiple: false
+        name: phase
+        required: false
+        description: EV charging phase [1 Phase, 3 Phases]
+        default: 1 Phase
+      current:
+        selector:
+          number:
+            min: 6
+            max: 16
+            step: 1
+        name: current
+        required: true
+        default: 6
+        description: EV charging current
+    mode: single
+
+automation:
+  - alias: EV Charging Load Balancer
+    id: load_balance_ev_charging
+    description: "Dynamic load balancing for EV charging with optional car-aware power management"
+
+    triggers:
+      - trigger: time_pattern
+        seconds: /10
+    conditions:
+      - condition: template
+        value_template: "{{ (state_attr('automation.load_balance_ev_charging', 'current') == 0) | bool }}"
+      - condition: template
+        value_template: "{{ state_attr('sensor.ev_loadbalancer_charger','connection_state') == 'Connected' }}"
+      - condition: template
+        value_template: |-
+          {% set car_aware = state_attr('sensor.ev_loadbalancer', 'car_aware') | bool %}
+          {{ (state_attr('sensor.ev_loadbalancer_car', 'battery_percentage') | int < 100) | bool if car_aware else true }}
+      - condition: template
+        value_template: |-
+          {{ has_value( state_attr('sensor.ev_loadbalancer_charger','phases_output')) and 
+          has_value( state_attr('sensor.ev_loadbalancer_charger','current_output')) }}
+      - condition: template
+        value_template: "{{ state_attr('sensor.ev_loadbalancer','power_limit') | int > 0 }}"
+    actions:
+      - variables:
+          # Get sensor states with proper attribute references
+          household_power: "{{ states('sensor.ev_loadbalancer_house') | int }}"
+
+          charger_current_input: "{{ state_attr('sensor.ev_loadbalancer_charger','current_input') | int }}"
+          charger_power: "{{ state_attr('sensor.ev_loadbalancer_charger','active_power') | float }}"
+
+          charger_phases_input: "{{ state_attr('sensor.ev_loadbalancer_charger','phases_input') }}"
+
+          power_limit_extended: "{{ state_attr('sensor.ev_loadbalancer','power_limit_extended') | int }}"
+          power_limit_normal: "{{ state_attr('sensor.ev_loadbalancer','power_limit') | int }}"
+          nominal_voltage: "{{ state_attr('sensor.ev_loadbalancer_charger','nominal_voltage') | int(230) }}"
+
+          car_aware: "{{ state_attr('sensor.ev_loadbalancer', 'car_aware') | bool }}"
+
+          max_current: >
+            {% set charger_max_current = state_attr('sensor.ev_loadbalancer_charger', 'max_current') | int %}
+            {% set car_max_current = state_attr('sensor.ev_loadbalancer_car', 'max_current') | int %}
+            {{ [car_max_current if car_aware else charger_max_current, charger_max_current] | min }}
+
+          min_current: >
+            {% set charger_min_current = state_attr('sensor.ev_loadbalancer_charger', 'min_current') %}
+            {% set car_min_current = state_attr('sensor.ev_loadbalancer_car', 'min_current') %}
+            {{ [car_min_current if car_aware else charger_min_current, charger_min_current] | max }}
+
+          time_until_target_time: >
+            {% if car_aware %}
+              {% set now = now() %}    
+              {% set target_time = state_attr('sensor.ev_loadbalancer_car', 'soc_time') %}
+              {% set target_hour = target_time[0:2] | int %}
+              {% set target_minute = target_time[3:5] | int %}  
+              {% set target_datetime = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0) %}
+              {% if target_datetime < now %}
+                {% set target_datetime = target_datetime + timedelta(days=1) %}
+              {% endif %}
+              {% set time_diff = (target_datetime - now).total_seconds() / 3600 %}
+              {{ time_diff | round(2) | float }}
+            {% else %}
+              {{ 48 }}
+            {% endif %}
+
+          # Calculate efficiency using sensor states with proper variable references
+          charger_efficiency: >
+            {% set phase_count = 3 if charger_phases_input == "3 Phases" else 1 %}
+            {% if charger_current_input > 0 and charger_power > 1000.0 %}
+            {{ charger_power / (charger_current_input * nominal_voltage * phase_count) }}
+            {% else %}
+              {{ 1.0 }}
+            {% endif %}
+
+          # Power calculations
+          available_power: >
+            {% set min_power_threshold = -(nominal_voltage * min_current * 1.05) | float %}
+            {% if state_attr('sensor.ev_loadbalancer', 'pv_prioritized') and household_power < min_power_threshold %}
+              {% set pv_power = state_attr('sensor.ev_loadbalancer_house', 'pv_power') | float %}
+              {{ (pv_power / charger_efficiency) | int if pv_power > 0 else 0 }}
+            {% else %}
+              {% set power_left = (power_limit_normal - household_power) / charger_efficiency %}
+              {{ power_left if power_left > 0 else 0 }}
+            {% endif %}
+
+          phase_selection: "{{ 3 if available_power >= (nominal_voltage * min_current * 3) else 1 }}"
+
+          current_limit: >
+            {% set current = (available_power / (nominal_voltage * phase_selection)) | int %}
+            {% if current < min_current %}
+              0
+            {% elif current > max_current %}
+              {{ max_current }}
+            {% else %}
+              {{ current }}
+            {% endif %}
+
+          # Battery state estimation only if car aware is enabled
+          estimated_battery_percentage: |
+            {% if car_aware %}
+              {% set charging_power = (current_limit * nominal_voltage * phase_selection) | float %}
+              {% set added_energy = (charging_power * time_until_target_time | float) %}
+              {% set battery_capacity = state_attr('sensor.ev_loadbalancer_car','battery_capacity_wh') %}
+              {{ (((battery_capacity * state_attr('sensor.ev_loadbalancer_car','battery_percentage') / 100) + added_energy) / battery_capacity) * 100 }}
+            {% else %}
+              {{ 100.0 }}
+            {% endif %}
+
+          # Final power adjustments considering car awareness
+          power_limit: |
+            {% if car_aware and estimated_battery_percentage | int < state_attr('sensor.ev_loadbalancer_car','soc_threshold') %}
+              {{ power_limit_extended }}
+            {% else %}
+              {{ power_limit_normal }}
+            {% endif %}
+
+          adjusted_available_power_final: |
+            {% set min_power_threshold = -(nominal_voltage * min_current * 1.05) | float %}
+            {% if state_attr('sensor.ev_loadbalancer', 'pv_prioritized') and household_power < min_power_threshold %}
+              {% set pv_power = state_attr('sensor.ev_loadbalancer_house', 'pv_power') | float %}
+              {{ (pv_power / charger_efficiency) | int if pv_power > 0 else 0 }}
+            {% else %}
+              {% set power_left = (power_limit - household_power) / charger_efficiency %}
+              {{ power_left if power_left > 0 else 0 }}
+            {% endif %}
+
+          adjusted_phase_selection: "{{ 3 if adjusted_available_power_final >= (nominal_voltage * min_current * 3) else 1 }}"
+
+          adjusted_current_limit: >
+            {% set current = (adjusted_available_power_final / (nominal_voltage * adjusted_phase_selection)) | int %}
+            {{ current | int if current | int >= min_current else 0 }}
+
+      # Charging mode selection with logging
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.ev_loadbalancer') == 'Off' }}"
+            sequence:
+              - action: script.ev_loadbalancer_set_charger_params
+                metadata: {}
+                data:
+                  current: 0
+                  phase: 3
+                target:
+                  entity_id: script.ev_loadbalancer_set_charger_params
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.ev_loadbalancer') == 'Minimal 1.4kW' }}"
+            sequence:
+              - action: script.ev_loadbalancer_set_charger_params
+                metadata: {}
+                data:
+                  current: 6
+                  phase: 1
+                target:
+                  entity_id: script.ev_loadbalancer_set_charger_params
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.ev_loadbalancer') == 'Minimal 4kW' }}"
+            sequence:
+              - action: script.ev_loadbalancer_set_charger_params
+                metadata: {}
+                data:
+                  current: 6
+                  phase: 3
+                target:
+                  entity_id: script.ev_loadbalancer_set_charger_params
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.ev_loadbalancer') == 'Fast' }}"
+            sequence:
+              - action: script.ev_loadbalancer_set_charger_params
+                metadata: {}
+                data:
+                  current: 16
+                  phase: 3
+                target:
+                  entity_id: script.ev_loadbalancer_set_charger_params
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.ev_loadbalancer') == 'Eco' }}"
+            sequence:
+              - action: script.ev_loadbalancer_set_charger_params
+                metadata: {}
+                data:
+                  current: "{{ adjusted_current_limit | int }}"
+                  phase: "{{ adjusted_phase_selection }}"
+                target:
+                  entity_id: script.ev_loadbalancer_set_charger_params
+    mode: single
+
+  - alias: Reset EV charge
+    id: ev_loadbalancer_ev_charger_reset
+    description: Reset charger when charger is disconnected
+    triggers:
+      - trigger: template
+        value_template: "{{ state_attr('sensor.ev_loadbalancer_charger','connection_state') == 'Disconnected' }}"
+        for:
+          minutes: 1
+    action:
+      - action: script.ev_loadbalancer_set_charger_params
+        metadata: {}
+        data:
+          current: "{{ state_attr('sensor.ev_loadbalancer_charger','default_current') }}"
+          phase: "{{ state_attr('sensor.ev_loadbalancer_charger','default_phases') }}"
+        target:
+          entity_id: script.ev_loadbalancer_set_charger_params
+    mode: single

@@ -38,8 +38,10 @@ sequence:
                   enabled: true
               until:
                 - condition: template
-                  value_template: |-
-                    {{ (states('sensor.alfen_eve_connector_1_max_allowed_of_phases') == phase) or (repeat.index >= max_delays_phase) }}
+                  value_template: >-
+                    {{
+                    (states('sensor.alfen_eve_connector_1_max_allowed_of_phases')
+                    == phase) or (repeat.index >= max_delays_phase) }}
       - alias: Set current
         if:
           - condition: template
@@ -72,8 +74,10 @@ sequence:
                   enabled: true
               until:
                 - condition: template
-                  value_template: |-
-                    {{ (states('sensor.alfen_eve_main_external_max_current_socket_1') | round(0) | int == finalcurrent | int) or 
+                  value_template: >-
+                    {{
+                    (states('sensor.alfen_eve_main_external_max_current_socket_1')
+                    | round(0) | int == finalcurrent | int) or 
                        (repeat.index >= max_delays_current) }}
 description: Set the Alfen Eve Pro current and phase
 icon: mdi:ev-station

@@ -391,7 +391,13 @@ automation:
 
           adjusted_current_limit: >
             {% set current = (adjusted_available_power_final / (nominal_voltage * adjusted_phase_selection)) | int %}
-            {{ current | int if current | int >= min_current else 0 }}
+            {{% if current | int < min_current %}
+              0
+            {% elif current | int > max_current %}
+              {{ max_current }}
+            {% else %}
+              {{ current | int }}
+            {% endif %}
 
       # Charging mode selection with logging
       - choose:

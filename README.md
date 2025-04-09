@@ -40,17 +40,9 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
 ### Step 1: Package Installation
 Follow the [Home Assistant package documentation](https://www.home-assistant.io/docs/configuration/packages/) for installation details. The package file is located in the `package` folder.
 
-### Step 2: Create Helpers
-Create helper for parameters that you want to control from the UI. See [Configuration and Helpers](#configuration-and-helpers) for details.
-
-#### Mandatory Helpers
-- **Input number**: Maximum total power limit.
-- **Input select**: Load balancing mode [Off, Minimal 1.4kW, Minimal 4kW, Eco, Fast].
-
-#### Optional Helpers (for car-aware functionality)
-- **Input number**: Overcharge limit for when the minimum car charge is not reached.
-- **Input number**: Minimum target car charge.
-- **Date time**: Time by which the minimum car charge should be reached.
+### Step 2: Configuration
+Update the configuration section to your specific setup and check the configuration from the developer YAML section.
+If you don't need Car Aware functionality, the settings in the car configuration can be emptied
 
 > [!TIP]
 > Use a low-pass filter to smooth noisy household power consumption data. Example configuration:
@@ -69,10 +61,6 @@ Create helper for parameters that you want to control from the UI. See [Configur
 > ```
 > Here, `sensor.netto_verbruik_huis` is the raw household power consumption, and `netto_verbruik_huis_lp` is the filtered value used by the load balancer.
 
-### Step 3: Configuration
-Update the configuration section to your specific setup and check the configuration from the developer YAML section.
-If you don't need Car Aware functionality, the settings in the car configuration can be emptied
-
 > [!TIP]
 > For PV aware charging, use a low-pass filter to prevent excesive switching by cloud coverage. Example configuration:
 > ```yaml
@@ -89,10 +77,10 @@ If you don't need Car Aware functionality, the settings in the car configuration
 >     precision: 0
 > ```
 
-### Step 4: Update script
+### Step 3: Update script
 The script to set the charger parameters currently supports the Alfen Eve Pro Single charger. Update the script to the outputs according to your charger.
 
-### Step 5: Reload
+### Step 4: Reload
 Restart Home Assistant or reload templates, scripts and automations from the developer YAML section
 
 ## Details

@@ -16,7 +16,7 @@ A car charging load balancer for Home Assistant tailored to Belgian energy regul
 ## Introduction
 This Home Assistant automation provides intelligent load balancing for EV charging, designed to minimize energy costs and avoid exceeding your maximum power limit (capaciteitspiek) under Belgian energy regulations. By dynamically adjusting the charging phases and current based on your household's power consumption, this system helps you charge your EV efficiently without exceeding a set peak power (capaciteitstarief).
 
-This project is ideal for users with an EV charger that can switch phases and adjust current, such as the Alfen Eve Pro Wallbox. The load balancer can also be made car-aware, where the current SOC is taken into account to reach a minimum SOC at a set time.
+This project is ideal for users with an EV charger that can switch phases and adjust current, such as the Alfen Eve Pro wallbox. The load balancer can also be made car-aware, where the current SOC is taken into account to reach a minimum SOC at a set time.
 
 This is not a fully-fledged Home Assistant integration (yet), but a [package](https://www.home-assistant.io/docs/configuration/packages/) that can easily be integrated into your existing Home Assistant setup. 
 
@@ -96,7 +96,7 @@ The script to set the charger parameters currently supports the Alfen Eve Pro Si
 Restart Home Assistant or reload templates, scripts and automations from the developer YAML section
 
 ## Details
-This load balancer checks every 10 seconds the current household power consumption and sets the Alfen Wallbox charging parameters, phase and current, according to the remaining available power. The total allowed power to use (capaciteitspiek), household + EV charger, is defined in an input helper parameter.
+This load balancer checks every 10 seconds the current household power consumption and sets the charger output parameters, phase and current, according to the remaining available power. The total allowed power to use (capaciteitspiek), household + EV charger, is defined in an input helper parameter.
 The loadbalancer also takes charger efficiency into account by comparing the calculated power output with the actual power output.
 
 > [!Note]
@@ -118,7 +118,7 @@ If there is not enough power to charge at 3 phases, 6A, the charger is switched 
 When the charger is disconnected, the charger phases and current are set to a default value. This way you shouldn't end up with a charger that is set to 0A when Home Assistant is not available.
 
 > [!WARNING]
-> There is still a risk if Home Assistant becomes unavailable during charging with the charger set at 0A. Then you need to configure the charger directly on the charger such as [Eve Connect](https://alfen.com/en-be/eve-connect) app or ACE Service Installer for the Alfen Eve Pro.
+> There is still a risk if Home Assistant becomes unavailable during charging with the charger set at 0A. Then you need to configure the charger directly on the charger such as [Eve Connect](https://alfen.com/en-be/eve-connect) app or ACE Service Installer for the Alfen Eve Pro. Check your charger's manufacturer manual.
 
 The loading behavior can be adjusted by an input select:
 - Off: Do not charge
@@ -133,9 +133,11 @@ Update the following variables in the script with your own sensors and parameter
 ### Load balancer
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
+| `state`               | string | Parameter.        | Load balancer mode [Off, Minimal 1.4kW, Minimal 4kW, Fast, Eco]            |
 | `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false]                               |
 | `power_limit`         | W    | Parameter           | Maximum power consumption limit including charging.                        |
 | `power_limit_extended`| W    | Parameter           | [Optional] Maximum power allowed overcharge to reach SOC                   |
+| `pv_prioritized`      | W    | Parameter           | Enabled to make maximum use of solar power                                 |
 
 ### Charger
 | Variable              | Unit | Type                | Description                                                                |
@@ -145,21 +147,21 @@ Update the following variables in the script with your own sensors and parameter
 | `current_input`       | A    | Sensor              | Active current of the charger.                                             |
 | `current_output`      | A    | Output entity       | Current setting of the charger.                                            |
 | `default_current`     | A    | Parameter           | Default current to reset the charger of diconnecting.                      |
-| `default_phases`      |      | Parameter           | Default phase selection to reset the charger after disconnecting. ['1 Phase', '3 Phases']         |
+| `default_phases`      |      | Parameter           | Default phase selection to reset the charger after disconnecting. Charger dependant         |
 | `max_current`         | A    | Parameter           | Miximum supported current of the charger.                                  |
 | `min_current`         | A    | Parameter           | Minimum supported current of the charger.                                  |
 | `nominal_voltage`     | V    | Parameter           | Nominal operating voltage of the charger.                                  |
-| `phases_input`        |      | Sensor              | Active selected phases of the charger. ['1 Phase', '3 Phases']             |
-| `phases_output`       |      | Output entity       | Phases setting of the charger. ['1 Phase', '3 Phases']                     |
+| `phases_input`        |      | Sensor              | Active selected phases of the charger. Charger dependat                    |
+| `phases_output`       |      | Output entity       | Phases setting of the charger. Charger dependant                           |
 
 ### Household
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
 | `household_power`     | W    | Sensor              | Smoothed household power consumption excluding the charger.                |
+| `pv_power`            | W    | Sensor              | [Optional] Smoothed PV generated power.                                    |
 
 ### Car
 Car configution is optional and only needed when car_aware is enabled in the load balancer
-
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
 | `min_current`         | A    | Parameter           | Minimum supported car current.                                             |
@@ -169,26 +171,13 @@ Car configution is optional and only needed when car_aware is enabled in the loa
 | `soc_threshold`       | %    | Parameter           | Required battery percentage to reach by a set time. [0%-100%]              |
 | `target_time`         | Time [HH:SS] | Parameter   | Time by which the SOC threshold should be reached.                         |
 
-
-![Image](https://github.com/user-attachments/assets/2717a963-ad2c-469a-9077-8368c776afb6)
-
-![Image](https://github.com/user-attachments/assets/b347021d-229c-4a7d-8682-5a99f5f9c4f6)
-
-![Image](https://github.com/user-attachments/assets/e263175f-1407-45e9-b684-dfdd1172b7c7)
-
-![Image](https://github.com/user-attachments/assets/73853bbc-1ff1-494f-b80a-216cd31b3291)
-
-![Image](https://github.com/user-attachments/assets/93a0863c-7ad4-4ee5-bc11-36dc61b7e0e3)
-
-![Image](https://github.com/user-attachments/assets/cf492018-cf80-4fbe-bc1d-b0f54fee5580)
-
 >[!Tip]
 >Once the monthly peak consumption passes the set power limit of the loadbalancer, you can increase this limit to the new monthly peak via an automation. Do not forget to reset this at the beginning of the month.
 
 ## Future Developments
 - [x] Autocalculate charger efficiency.
 - [x] Make car awareness optional.
-- [ ] Option to prioritize PV consumption.
+- [x] Option to prioritize PV consumption.
 - [ ] Optimize for dynamic energy contracts.
 - [x] Provide as generic a Home Assistant package.
 - [ ] Option to limit to 1 phase in Eco mode.

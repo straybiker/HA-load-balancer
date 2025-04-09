@@ -6,8 +6,6 @@ A car charging load balancer for Home Assistant tailored to Belgian energy regul
 - [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
-  - [Step 1: Create Helpers](#step-1-create-helpers)
-  - [Step 2: Package Installation](#step-2-package-installation)
 - [Details](#details)
 - [Configuration and Helpers](#configuration-and-helpers)
 - [Future Developments](#future-developments)

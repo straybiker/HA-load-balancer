@@ -79,7 +79,7 @@ If you don't need Car Aware functionality, the settings in the car configuration
 The script to set the charger parameters currently supports the Alfen Eve Pro Single charger. Update the script to the outputs according to your charger.
 
 ### Step 4: Reload
-Restart Home Assistant or reload templates, scripts and automations from the developer YAML section
+Restart Home Assistant
 
 ## Details
 This load balancer checks every 10 seconds the current household power consumption and sets the charger output parameters, phase and current, according to the remaining available power. The total allowed power to use (capaciteitspiek), household + EV charger, is defined in an input helper parameter.

@@ -391,7 +391,7 @@ automation:
 
           adjusted_current_limit: >
             {% set current = (adjusted_available_power_final / (nominal_voltage * adjusted_phase_selection)) | int %}
-            {{% if current | int < min_current %}
+            {% if current | int < min_current %}
               0
             {% elif current | int > max_current %}
               {{ max_current }}

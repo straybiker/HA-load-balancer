@@ -81,6 +81,9 @@ The script to set the charger parameters currently supports the Alfen Eve Pro Si
 ### Step 4: Reload
 Restart Home Assistant
 
+### Step 5: Set parameters
+Set the helpers that are now available in the UI to the desired values.
+
 ## Details
 This load balancer checks every 10 seconds the current household power consumption and sets the charger output parameters, phase and current, according to the remaining available power. The total allowed power to use (capaciteitspiek), household + EV charger, is defined in an input helper parameter.
 The loadbalancer also takes charger efficiency into account by comparing the calculated power output with the actual power output.

@@ -35,7 +35,7 @@ template:
           phases_input: "{{ states('sensor.alfen_eve_connector_1_max_allowed_of_phases') }}"
           phases_output: select.alfen_eve_installation_max_allowed_phases
           # max_phases: "{{ 3 | int }}" for future development
-          default_phases: "3 Phases"
+          default_phases: "{{ 3 | int }}"
           max_current: "{{ 16 | int }}"
           min_current: "{{ 6 | int }}"
           default_current: "{{ 16 | int }}"

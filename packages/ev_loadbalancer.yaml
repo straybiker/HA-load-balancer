@@ -100,13 +100,13 @@ input_select:
 input_boolean:
   ## Mandatory input
   ev_load_balancer_pv_prioritized:
-    name: EV Load Balancer Prioritized
+    name: EV Load Balancer Eco PV Prioritized
     icon: mdi:solar-power
     initial: true
 
   ev_load_balancer_car_aware:
     ## Mandatory input
-    name: EV Load Balancer Car Aware
+    name: EV Load Balancer Eco Car Aware
     icon: mdi:car-electric
     initial: true
 
@@ -485,6 +485,8 @@ automation:
                   phase: "{{ adjusted_phase_selection }}"
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
+    trace:
+      stored_traces: 90
     mode: single
 
   - alias: Reset EV charger

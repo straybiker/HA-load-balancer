@@ -235,7 +235,7 @@ script:
                   until:
                     - condition: template
                       value_template: >-
-                        {{ (state_attr('sensor.ev_load_balancer_charger','current_input') | int == finalcurrent | int) or 
+                        {{ (state_attr('sensor.ev_load_balancer_charger','current_input') | int(99) == finalcurrent | int) or 
                           (repeat.index >= max_delays) }}
     description: Set the charger current and phase
     fields:
@@ -338,17 +338,16 @@ automation:
 
           # Power calculations
           available_power: >
-            {% set min_power_threshold = -(nominal_voltage * min_current) | float %}
-
             {% if states('sensor.ev_load_balancer') == 'Solar' %}
               {% if household_power > 0 %}
                 {{ 0 | int }}
               {% else %}
-                {% set power_left = -(household_power + min_power_threshold) / charger_efficiency %}
+                {% set power_left = (-household_power + (nominal_voltage * 1))  / charger_efficiency %}
                 {{ power_left if power_left > 0 else 0 }}
               {% endif %}
 
             {% elif states('sensor.ev_load_balancer') == 'Eco' %}
+              {% set min_power_threshold = -(nominal_voltage * min_current) | float %}
               {% if state_attr('sensor.ev_load_balancer', 'pv_prioritized') and household_power < min_power_threshold %}
                 {% set pv_power = (state_attr('sensor.ev_load_balancer_house', 'pv_power') | float / charger_efficiency) | int %}
                 {{ pv_power if pv_power > 0 else 0 }}
@@ -394,27 +393,26 @@ automation:
 
           adjusted_available_power_final: |
             {% set min_power_threshold = -(nominal_voltage * min_current) | float %}
+            {% set power_left = 0 | int %}
 
             {% if states('sensor.ev_load_balancer') == 'Solar' %}
-              {% if household_power > 0 %}
-                {{ 0 | int }}
-              {% else %}
-                {% set power_left = -(household_power + min_power_threshold) / charger_efficiency %}
-                {{ power_left if power_left > 0 else 0 }}
+              {% if household_power < 0 %}
+                {% if car_aware and estimated_battery_percentage | int < state_attr('sensor.ev_load_balancer_car','soc_threshold') %}
+                  {% power_left = (-household_power + (nominal_voltage * 1)) %}
+                {% else %}
+                  {% power_left = -(household_power + min_power_threshold) %}
+                {% endif %}
               {% endif %}
 
             {% elif states('sensor.ev_load_balancer') == 'Eco' %}
               {% if state_attr('sensor.ev_load_balancer', 'pv_prioritized') and household_power < min_power_threshold %}
-                {% set pv_power = (state_attr('sensor.ev_load_balancer_house', 'pv_power') | float / charger_efficiency) | int %}
-                {{ pv_power if pv_power > 0 else 0 }}
+                {% set pv_left = (state_attr('sensor.ev_load_balancer_house', 'pv_power') | float) | int %}
               {% else %}
-                {% set power_left = (power_limit_normal - household_power) / charger_efficiency %}
-                {{ power_left if power_left > 0 else 0 }}
+                {% set power_left = (power_limit - household_power) / charger_efficiency %}
               {% endif %}
-
-            {% else %}
-              {{ 0 | int}}
             {% endif %}
+
+            {{ (power_left / charger_efficiency) if power_left > 0 else 0 }}
 
           adjusted_phase_selection: "{{ 3 if adjusted_available_power_final >= (nominal_voltage * min_current * 3) else 1 }}"
 

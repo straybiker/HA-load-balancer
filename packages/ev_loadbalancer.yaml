@@ -398,15 +398,14 @@ automation:
             {% if states('sensor.ev_load_balancer') == 'Solar' %}
               {% if household_power < 0 %}
                 {% if car_aware and estimated_battery_percentage | int < state_attr('sensor.ev_load_balancer_car','soc_threshold') %}
-                  {% power_left = (-household_power + (nominal_voltage * 1)) %}
+                  {% set power_left = (-household_power + (nominal_voltage * 1)) %}
                 {% else %}
-                  {% power_left = -(household_power + min_power_threshold) %}
+                  {% set power_left = -household_power %}
                 {% endif %}
               {% endif %}
-
             {% elif states('sensor.ev_load_balancer') == 'Eco' %}
               {% if state_attr('sensor.ev_load_balancer', 'pv_prioritized') and household_power < min_power_threshold %}
-                {% set pv_left = (state_attr('sensor.ev_load_balancer_house', 'pv_power') | float) | int %}
+                {% set power_left = (state_attr('sensor.ev_load_balancer_house', 'pv_power') | float) | int %}
               {% else %}
                 {% set power_left = (power_limit - household_power) / charger_efficiency %}
               {% endif %}

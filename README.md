@@ -19,7 +19,7 @@ This project is ideal for users with an EV charger that can switch phases and ad
 This is not a fully-fledged Home Assistant integration (yet), but a [package](https://www.home-assistant.io/docs/configuration/packages/) that can easily be integrated into your existing Home Assistant setup. 
 
 > [!IMPORTANT]
-> The separate YAML files are deprecated and will be removed in the future.
+> The separate YAML files are deprecated and archived in the archive folder.
 
 ## Features
 - Dynamically adjusts EV charging based on household power consumption.
@@ -115,6 +115,10 @@ The loading behavior can be adjusted by an input select:
 - Minimal 4kW: Always charge at 3 phases, 6A
 - Eco: Load balance based on the available rest power
 - Fast: Always load at 3 phases, 16A
+- Solar: Use all available solar power. When there is less then 1 phase 6A available, draw up to 6A from the grid to fill in the current gap. Do not charge if there is no available solar power. 
+
+> [!WARNING]
+> Solar mode is experimental
 
 ## Configuration and helpers
 Update the following variables in the script with your own sensors and parameters. The parameters can be hard coded or set with a helper variable if you want to control it from the UI
@@ -122,7 +126,7 @@ Update the following variables in the script with your own sensors and parameter
 ### Load balancer
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
-| `state`               | string | Parameter.        | Load balancer mode [Off, Minimal 1.4kW, Minimal 4kW, Fast, Eco]            |
+| `state`               | string | Parameter.        | Load balancer mode [Off, Minimal 1.4kW, Minimal 4kW, Fast, Eco, Solar]     |
 | `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false]                               |
 | `power_limit`         | W    | Parameter           | Maximum power consumption limit including charging.                        |
 | `power_limit_extended`| W    | Parameter           | [Optional] Maximum power allowed overcharge to reach SOC                   |

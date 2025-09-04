@@ -127,10 +127,7 @@ The loading behavior can be adjusted by an input select:
 - Minimal 4kW: Always charge at 3 phases, 6A
 - Eco: Load balance based on the available rest power
 - Fast: Always load at 3 phases, 16A
-- Solar: Use all available solar power. When there is less then 1 phase 6A available, draw up to 6A from the grid to fill in the current gap. Do not charge if there is no available solar power. 
-
-> [!WARNING]
-> Solar mode is experimental
+- Solar: Use only available solar power with a minimum of 1 phase 6A. When there is less solar power available charging stops.
 
 ## Configuration and helpers
 Update the following variables in the script with your own sensors and parameters. The parameters can be hard coded or set with a helper variable if you want to control it from the UI

@@ -37,10 +37,12 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
 - Phase switching protection to prevent frequent switching between 1 and 3 phases on days with alternating sun and clouds.
 
 ## Prerequisites
-- **3-phase electrical installation**: 1-phase is not yet supported.
+- **3-phase electrical installation**: 1-phase only is not yet supported.
 - **EV charger integration**: Only 1 socket is currently supported.
   - For the Alfen Eve Pro, install the Home Assistant HACS Alfen Wallbox integration: [Alfen Wallbox Integration](https://github.com/leeyuentuen/alfen_wallbox). Ensure active load balancing is disabled on the Alfen charger to avoid conflicts. Minimum version: 2.9.4.
 - **Household power consumption sensor** excluding charger power consumption. 
+> [!TIP]
+> If you can't measure the household power consumption seperately, create helpers to calculate the to subtract the charger power from the total power consumption
 
 ## Installation
 ### Step 1: Package Installation
@@ -85,6 +87,8 @@ If you don't need Car Aware functionality, the settings in the car configuration
 
 ### Step 3: Update script
 The script to set the charger parameters currently supports the Alfen Eve Pro Single charger. Update the script to the outputs according to your charger.
+> [!Note]
+> The charger connection states are based on the [IEC-61851 standard](https://en.wikipedia.org/wiki/IEC_61851). If your charger is not compliant to this standard, you need to update the state mapping.
 
 ### Step 4: Reload
 Restart Home Assistant
@@ -182,7 +186,7 @@ Car configuration is optional and only needed when car_aware is enabled in the l
 ## Frequent Phase Switching Protection
 The load balancer includes a phase switching protection mechanism to prevent frequent switches between 1 and 3 phases:
 
-- When switching from 3 phases to 1 phase in Eco or Solar mode, a 15-minute timer is started
+- When switching from 3 phases to 1 phase in Eco or Solar mode, a timer is started. Default 5 minutes.
 - During this period, the charger will not switch back to 3 phases even if more power becomes available
 - This protection does not apply to manual mode changes (e.g., switching to "Minimal 1.4kW" or "Minimal 4kW")
 - The timer duration can be adjusted in the `timer.ev_load_balancer_phase_switching_timer` configuration

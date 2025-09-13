@@ -195,6 +195,23 @@ If any required sensor or attribute for the selected charge mode is unavailable,
 
 This check is mode-aware: car-related sensors are only checked if car-aware mode is enabled. This ensures safe and predictable operation even if some sensors are missing or temporarily unavailable.
 
+## Car-aware Mode Behavior
+
+When car-aware mode is enabled (`car_aware: true`), the system checks for required car sensors:
+- battery_percentage
+- battery_capacity_wh
+- soc_time
+- soc_threshold
+
+If any of these sensors are unavailable:
+1. A warning is logged to Home Assistant
+2. The system continues operating with car_aware=false
+3. Uses charger default values for min/max current
+
+The current and phase limits are determined as follows:
+- With car_aware=true: Uses minimum of car and charger max current
+- With car_aware=false: Uses charger defaults
+- With unavailable car sensors: Falls back to charger defaults
 
 ## Future Developments
 - [x] Autocalculate charger efficiency.

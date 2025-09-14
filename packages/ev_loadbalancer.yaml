@@ -100,13 +100,13 @@ input_select:
 input_boolean:
   ## Mandatory input
   ev_load_balancer_pv_prioritized:
-    name: EV Load Balancer Eco PV Prioritized
+    name: EV Load Balancer Limited PV Prioritized
     icon: mdi:solar-power
     initial: true
 
   ev_load_balancer_car_aware:
     ## Mandatory input
-    name: EV Load Balancer Eco Car Aware
+    name: EV Load Balancer Car Aware
     icon: mdi:car-electric
     initial: true
 
@@ -288,6 +288,7 @@ automation:
           {% if car_aware %}
             {% set battery_percentage = state_attr('sensor.ev_load_balancer_car', 'battery_percentage') %}
             {% if battery_percentage in ['unavailable', 'unknown', None, 'none', 'None', ''] %}
+              # Ignore car_aware if there is no commincation with the car
               {{ true }}
             {% else %}
               {{ (battery_percentage | int < 100) | bool }}
@@ -311,6 +312,7 @@ automation:
           power_limit_extended: "{{ state_attr('sensor.ev_load_balancer','power_limit_extended') | int }}"
           power_limit_normal: "{{ state_attr('sensor.ev_load_balancer','power_limit') | int }}"
           nominal_voltage: "{{ state_attr('sensor.ev_load_balancer_charger','nominal_voltage') | int(230) }}"
+          mode: "{{ states('sensor.ev_load_balancer') }}"
 
           # Calculate currents based on charger and car settings
           max_current: >
@@ -370,15 +372,14 @@ automation:
 
           # Power calculations
           available_power: >
-            {% if states('sensor.ev_load_balancer') == 'Solar' %}
+            {% if mode == 'Solar' %}
               {% if household_power > 0 %}
                 {{ 0 | int }}
               {% else %}
-                {% set power_left = (-household_power + (nominal_voltage * 1))  / charger_efficiency %}
+                {% set power_left = (-household_power + nominal_voltage) / charger_efficiency %}
                 {{ power_left if power_left > 0 else 0 }}
               {% endif %}
-
-            {% elif states('sensor.ev_load_balancer') == 'Limited' %}
+            {% elif mode == 'Limited' %}
               {% set min_power_threshold = -(nominal_voltage * min_current) | float %}
               {% if state_attr('sensor.ev_load_balancer', 'pv_prioritized') and household_power < min_power_threshold %}
                 {% set pv_power = state_attr('sensor.ev_load_balancer_house', 'pv_power') | float %}
@@ -387,7 +388,6 @@ automation:
                 {% set power_left = (power_limit_normal - household_power) / charger_efficiency %}
                 {{ power_left if power_left > 0 else 0 }}
               {% endif %}
-
             {% else %}
               {{ 0 | int}}
             {% endif %}
@@ -469,15 +469,13 @@ automation:
           - conditions:
               - condition: template
                 value_template: >
-                  {% set car_aware = state_attr('sensor.ev_load_balancer', 'car_aware') %}
                   {% set base_sensors = [
                     states('sensor.ev_load_balancer_house'),
                     state_attr('sensor.ev_load_balancer_charger','current_input'),
                     state_attr('sensor.ev_load_balancer_charger','active_power'),
                     state_attr('sensor.ev_load_balancer_charger','phases_input'),
                   ] %}
-                  {% set invalid_base = base_sensors | select('in', ['unavailable', 'unknown', None, 'none', 'None', '']) | list %}
-                  {{ invalid_base | count > 0 }}
+                  {{ base_sensors | select('in', ['unavailable', 'unknown', None, 'none', 'None', '']) | list | count > 0 }}
             sequence:
               - service: system_log.write
                 data:
@@ -492,7 +490,7 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ states('sensor.ev_load_balancer') == 'Off' }}"
+                value_template: "{{ mode in ['Off'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
@@ -503,7 +501,7 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ states('sensor.ev_load_balancer') == 'Minimal 1.4kW' }}"
+                value_template: "{{ mode in ['Minimal 1.4kW'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
@@ -514,7 +512,7 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ states('sensor.ev_load_balancer') == 'Minimal 4kW' }}"
+                value_template: "{{ mode in ['Minimal 4kW'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
@@ -525,7 +523,7 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ states('sensor.ev_load_balancer') == 'Fast' }}"
+                value_template: "{{ mode in ['Fast'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
@@ -536,18 +534,7 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ states('sensor.ev_load_balancer') == 'Limited' }}"
-            sequence:
-              - action: script.ev_load_balancer_set_charger_params
-                metadata: {}
-                data:
-                  current: "{{ adjusted_current_limit | int }}"
-                  phase: "{{ adjusted_phase_selection }}"
-                target:
-                  entity_id: script.ev_load_balancer_set_charger_params
-          - conditions:
-              - condition: template
-                value_template: "{{ states('sensor.ev_load_balancer') == 'Solar' }}"
+                value_template: "{{ mode in ['Limited', 'Solar'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
@@ -580,7 +567,7 @@ automation:
 
   - alias: Phase Switching Timer Control
     id: ev_load_balancer_phase_switching_timer_control
-    description: Start timer when switching from 3 phase to 1 phase in Eco or Solar mode
+    description: Start timer when switching from 3 phase to 1 phase in Limited or Solar mode
     triggers:
     - trigger: state
       entity_id:
@@ -590,7 +577,7 @@ automation:
     conditions:
       - condition: template
         value_template: >
-          {{ states('sensor.ev_load_balancer') in ['Eco', 'Solar'] }}
+          {{ states('sensor.ev_load_balancer') in ['Limited', 'Solar'] }}
     actions:
       - action: timer.start
         target:

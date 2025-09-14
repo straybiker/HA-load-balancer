@@ -93,7 +93,7 @@ input_select:
       - "Off"
       - "Minimal 1.4kW"
       - "Minimal 4kW"
-      - "Eco"
+      - "Limited"
       - "Fast"
       - "Solar"
 
@@ -346,7 +346,7 @@ automation:
                 {{ power_left if power_left > 0 else 0 }}
               {% endif %}
 
-            {% elif states('sensor.ev_load_balancer') == 'Eco' %}
+            {% elif states('sensor.ev_load_balancer') == 'Limited' %}
               {% set min_power_threshold = -(nominal_voltage * min_current) | float %}
               {% if state_attr('sensor.ev_load_balancer', 'pv_prioritized') and household_power < min_power_threshold %}
                 {% set pv_power = (state_attr('sensor.ev_load_balancer_house', 'pv_power') | float / charger_efficiency) | int %}
@@ -403,7 +403,7 @@ automation:
                   {% set power_left = -household_power %}
                 {% endif %}
               {% endif %}
-            {% elif states('sensor.ev_load_balancer') == 'Eco' %}
+            {% elif states('sensor.ev_load_balancer') == 'Limited' %}
               {% if state_attr('sensor.ev_load_balancer', 'pv_prioritized') and household_power < min_power_threshold %}
                 {% set power_left = (state_attr('sensor.ev_load_balancer_house', 'pv_power') | float) | int %}
               {% else %}
@@ -473,7 +473,18 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ states('sensor.ev_load_balancer') == 'Eco' or  states('sensor.ev_load_balancer') == 'Solar'}}"
+                value_template: "{{ states('sensor.ev_load_balancer') == 'Limited' }}"
+            sequence:
+              - action: script.ev_load_balancer_set_charger_params
+                metadata: {}
+                data:
+                  current: "{{ adjusted_current_limit | int }}"
+                  phase: "{{ adjusted_phase_selection }}"
+                target:
+                  entity_id: script.ev_load_balancer_set_charger_params
+          - conditions:
+              - condition: template
+                value_template: "{{ states('sensor.ev_load_balancer') == 'Solar' }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}

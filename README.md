@@ -25,7 +25,7 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
 - Dynamically adjusts EV charging based on household power consumption.
 - Supports 3-phase electrical installations.
 - Car-aware functionality to meet minimum SOC targets by a set time.
-- Configurable modes: Off, Minimal (1.4kW or 4kW), Eco, and Fast.
+- Configurable modes: Off, Minimal (1.4kW or 4kW), Limited, and Fast.
 - Handles charger efficiency and measurement noise with filtering.
 
 ## Prerequisites
@@ -113,12 +113,22 @@ The loading behavior can be adjusted by an input select:
 - Off: Do not charge
 - Minimal 1.4kW: Always charge at 1 phase, 6A
 - Minimal 4kW: Always charge at 3 phases, 6A
-- Eco: Load balance based on the available rest power
+- Limited: Load balance based on the available rest power
 - Fast: Always load at 3 phases, 16A
 - Solar: Use all available solar power. When there is less then 1 phase 6A available, draw up to 6A from the grid to fill in the current gap. Do not charge if there is no available solar power. 
 
 > [!WARNING]
 > Solar mode is experimental
+
+## Charge Modes
+
+The available charge modes are:
+- Off
+- Minimal 1.4kW
+- Minimal 4kW
+- Limited
+- Fast
+- Solar
 
 ## Configuration and helpers
 Update the following variables in the script with your own sensors and parameters. The parameters can be hard coded or set with a helper variable if you want to control it from the UI
@@ -126,7 +136,7 @@ Update the following variables in the script with your own sensors and parameter
 ### Load balancer
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
-| `state`               | string | Parameter.        | Load balancer mode [Off, Minimal 1.4kW, Minimal 4kW, Fast, Eco, Solar]     |
+| `state`               | string | Parameter.        | Load balancer mode [Off, Minimal 1.4kW, Minimal 4kW, Fast, Limited, Solar]     |
 | `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false]                               |
 | `power_limit`         | W    | Parameter           | Maximum power consumption limit including charging.                        |
 | `power_limit_extended`| W    | Parameter           | [Optional] Maximum power allowed overcharge to reach SOC                   |

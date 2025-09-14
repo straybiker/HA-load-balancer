@@ -1,0 +1,41 @@
+set_charging:
+  name: Set Charging
+  description: Set charging parameters.
+  fields:
+    current:
+      name: Current
+      description: Current in Amperes
+      required: true
+      selector:
+        number:
+          min: 6
+          max: 16
+          step: 1
+          unit_of_measurement: A
+    phases:
+      name: Phases
+      description: Number of phases (1 or 3)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 3
+          step: 2
+
+set_mode:
+  name: Set Mode
+  description: Set charging mode.
+  fields:
+    mode:
+      name: Mode
+      description: Charging mode
+      required: true
+      selector:
+        select:
+          options:
+            - "Off"
+            - "Minimal 1.4kW"
+            - "Minimal 4kW"
+            - "Eco"
+            - "Fast"
+            - "Solar"

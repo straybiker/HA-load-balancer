@@ -1,0 +1,113 @@
+template:
+  # Mock house power sensor
+  - sensor:
+      - name: "Mock House Power"
+        unique_id: netto_verbruik_huis_lp
+        unit_of_measurement: "W"
+        state: "{{ states('input_number.mock_house_power') | int(0) }}"
+
+      # Mock charger sensors
+      - name: "Mock Charger Power"
+        unique_id: alfen_eve_active_power_total_socket_1
+        unit_of_measurement: "W"
+        state: "{{ states('input_number.mock_charger_power') | int(0) }}"
+      
+      - name: "Mock Charger Current"
+        unique_id: alfen_eve_main_active_max_current_socket_1
+        unit_of_measurement: "A"
+        state: "{{ states('input_number.mock_charger_current') | int(0) }}"
+      
+      - name: "Mock Charger Phases"
+        unique_id: alfen_eve_connector_1_max_allowed_of_phases
+        state: "{{ states('input_select.mock_charger_phases') }}"
+
+      - name: "Mock Charger State"
+        unique_id: alfen_eve_mode3_state_socket_1
+        state: "{{ states('input_select.mock_charger_state') }}"
+
+      # Mock car sensor
+      - name: "Mock Car Battery"
+        unique_id: ix3_m_sport_remaining_battery_percent
+        unit_of_measurement: "%"
+        state: "{{ states('input_number.mock_car_battery') | int(0) }}"
+
+      # Mock PV sensor
+      - name: "Mock PV Power"
+        unique_id: sma_power_w
+        unit_of_measurement: "W"
+        state: "{{ states('input_number.mock_pv_power') | int(0) }}"
+
+# Input helpers for controlling mock values
+input_number:
+  mock_house_power:
+    name: Mock House Power
+    min: -10000
+    max: 10000
+    step: 100
+    unit_of_measurement: "W"
+
+  mock_charger_power:
+    name: Mock Charger Power
+    min: 0
+    max: 11000
+    step: 100
+    unit_of_measurement: "W"
+
+  mock_charger_current:
+    name: Mock Charger Current
+    min: 0
+    max: 16
+    step: 1
+    unit_of_measurement: "A"
+
+  mock_car_battery:
+    name: Mock Car Battery Level
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+
+  mock_pv_power:
+    name: Mock PV Power
+    min: 0
+    max: 10000
+    step: 100
+    unit_of_measurement: "W"
+
+input_select:
+  mock_charger_phases:
+    name: Mock Charger Phases
+    options:
+      - "1 Phase"
+      - "3 Phases"
+
+  mock_charger_state:
+    name: Mock Charger State
+    options:
+      - "STATE_A"  # Disconnected
+      - "STATE_B1" # Connected
+      - "STATE_B2" # Connected
+      - "STATE_C1" # Connected
+      - "STATE_C2" # Connected
+      - "STATE_D1" # Connected
+      - "STATE_D2" # Connected
+      - "STATE_E"  # Disconnected
+      - "STATE_F"  # Error
+
+# Mock control entities
+number:
+  - platform: template
+    name: Mock Current Output
+    unique_id: alfen_eve_power_connector_max_current_socket_1
+    min: 6
+    max: 16
+    step: 1
+    unit_of_measurement: "A"
+
+select:
+  - platform: template
+    name: Mock Phase Output
+    unique_id: alfen_eve_installation_max_allowed_phases
+    options:
+      - "1 Phase"
+      - "3 Phases"

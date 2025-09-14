@@ -38,7 +38,7 @@ template:
           default_phases: "{{ 3 | int }}"
           max_current: "{{ 16 | int }}"
           min_current: "{{ 6 | int }}"
-          default_current: "{{ 16 | int }}"
+          default_current: "{{ 8 | int }}"
           nominal_voltage: "{{ 230 | int }}"
           connection_state: >
             {% set m3 = states('sensor.alfen_eve_mode3_state_socket_1') %}
@@ -72,6 +72,7 @@ template:
           power_limit_extended: "{{ states('input_number.ev_load_balancer_extended_power_limit') | int }}"
           car_aware: "{{ states('input_boolean.ev_load_balancer_car_aware') | bool }}"
           pv_prioritized: "{{ states('input_boolean.ev_load_balancer_pv_prioritized') | bool }}"
+          single_phase_only: "{{ states('input_boolean.ev_load_balancer_single_phase_only') | bool }}"
 
 ###################################################################################
 ## END CONFIGURATION
@@ -91,8 +92,8 @@ input_select:
     icon: mdi:ev-station
     options:
       - "Off"
-      - "Minimal 1.4kW"
-      - "Minimal 4kW"
+      - "Fixed 1.4kW"
+      - "Fixed 4kW"
       - "Limited"
       - "Fast"
       - "Solar"
@@ -109,6 +110,11 @@ input_boolean:
     name: EV Load Balancer Car Aware
     icon: mdi:car-electric
     initial: true
+
+  ev_load_balancer_single_phase_only:
+    name: EV Load Balancer Single Phase Only
+    icon: mdi:numeric-1-box
+    initial: false
 
 input_number:
   ## Mandatory input
@@ -446,7 +452,8 @@ automation:
             {{ (power_left / charger_efficiency) if power_left > 0 else 0 }}
 
           adjusted_phase_selection: >
-            {% set desired_phase = 3 if adjusted_available_power_final >= (nominal_voltage * min_current * 3) else 1 %}
+            {% set force_single = state_attr('sensor.ev_load_balancer', 'single_phase_only') | bool %}
+            {% set desired_phase = 1 if force_single else (3 if adjusted_available_power_final >= (nominal_voltage * min_current * 3) else 1) %}
             {% set current_phase = 3 if states(state_attr('sensor.ev_load_balancer_charger','phases_output')) == '3 Phases' else 1 %}
             {% if desired_phase > current_phase and states('timer.ev_load_balancer_phase_switching_timer') == 'active' %}
               {{ current_phase }}
@@ -501,7 +508,7 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ mode in ['Minimal 1.4kW'] }}"
+                value_template: "{{ mode in ['Fixed 1.4kW'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
@@ -512,13 +519,13 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ mode in ['Minimal 4kW'] }}"
+                value_template: "{{ mode in ['Fixed 4kW'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
                 data:
-                  current: 6
-                  phase: 3
+                  current: "{{ 16 if state_attr('sensor.ev_load_balancer', 'single_phase_only') else 6 }}"
+                  phase: "{{ 1 if state_attr('sensor.ev_load_balancer', 'single_phase_only') else 3 }}"
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
@@ -529,7 +536,7 @@ automation:
                 metadata: {}
                 data:
                   current: 16
-                  phase: 3
+                  phase: "{{ 1 if state_attr('sensor.ev_load_balancer', 'single_phase_only') else 3 }}"
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:

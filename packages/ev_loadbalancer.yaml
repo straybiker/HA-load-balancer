@@ -97,6 +97,7 @@ input_select:
       - "Limited"
       - "Fast"
       - "Solar"
+      - "Comfort"
 
 input_boolean:
   ## Mandatory input
@@ -146,6 +147,17 @@ input_number:
     min: 0
     max: 100
     step: 1
+
+  ## Optional input: can be removed if Comfort mode is not used
+  ev_load_balancer_comfort_soc:
+    name: EV Load Balancer Minimum Comfort SOC
+    icon: mdi:battery-charging-50
+    mode: slider
+    unit_of_measurement: "%"
+    min: 0
+    max: 100
+    step: 1
+    initial: 50
 
 input_datetime:
   ## Optional input: can be removed if car aware is not used
@@ -318,7 +330,17 @@ automation:
           power_limit_extended: "{{ state_attr('sensor.ev_load_balancer','power_limit_extended') | int }}"
           power_limit_normal: "{{ state_attr('sensor.ev_load_balancer','power_limit') | int }}"
           nominal_voltage: "{{ state_attr('sensor.ev_load_balancer_charger','nominal_voltage') | int(230) }}"
-          mode: "{{ states('sensor.ev_load_balancer') }}"
+          selected_mode: "{{ states('sensor.ev_load_balancer') }}"
+
+          # Determine effective mode for Comfort mode
+          effective_mode: >
+            {% if selected_mode == 'Comfort' %}
+              {% set comfort_soc = states('input_number.ev_load_balancer_comfort_soc') | int %}
+              {% set current_soc = state_attr('sensor.ev_load_balancer_car', 'battery_percentage') | int %}
+              {{ 'Limited' if current_soc < comfort_soc else 'Solar' }}
+            {% else %}
+              {{ selected_mode }}
+            {% endif %}
 
           # Calculate currents based on charger and car settings
           max_current: >
@@ -378,14 +400,14 @@ automation:
 
           # Power calculations
           available_power: >
-            {% if mode == 'Solar' %}
+            {% if effective_mode == 'Solar' %}
               {% if household_power > 0 %}
                 {{ 0 | int }}
               {% else %}
                 {% set power_left = (-household_power + nominal_voltage) / charger_efficiency %}
                 {{ power_left if power_left > 0 else 0 }}
               {% endif %}
-            {% elif mode == 'Limited' %}
+            {% elif effective_mode == 'Limited' %}
               {% set min_power_threshold = -(nominal_voltage * min_current) | float %}
               {% if state_attr('sensor.ev_load_balancer', 'pv_prioritized') and household_power < min_power_threshold %}
                 {% set pv_power = state_attr('sensor.ev_load_balancer_house', 'pv_power') | float %}
@@ -433,7 +455,7 @@ automation:
             {% set min_power_threshold = -(nominal_voltage * min_current) | float %}
             {% set power_left = 0 | int %}
 
-            {% if states('sensor.ev_load_balancer') == 'Solar' %}
+            {% if effective_mode == 'Solar' %}
               {% if household_power < 0 %}
                 {% if car_aware and estimated_battery_percentage | int < state_attr('sensor.ev_load_balancer_car','soc_threshold') %}
                   {% set power_left = (-household_power + (nominal_voltage * 1)) %}
@@ -441,7 +463,7 @@ automation:
                   {% set power_left = -household_power %}
                 {% endif %}
               {% endif %}
-            {% elif states('sensor.ev_load_balancer') == 'Limited' %}
+            {% elif effective_mode == 'Limited' %}
               {% if state_attr('sensor.ev_load_balancer', 'pv_prioritized') and household_power < min_power_threshold %}
                 {% set power_left = (state_attr('sensor.ev_load_balancer_house', 'pv_power') | float) | int %}
               {% else %}
@@ -497,7 +519,7 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ mode in ['Off'] }}"
+                value_template: "{{ effective_mode in ['Off'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
@@ -508,7 +530,7 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ mode in ['Fixed 1.4kW'] }}"
+                value_template: "{{ effective_mode in ['Fixed 1.4kW'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
@@ -519,7 +541,7 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ mode in ['Fixed 4kW'] }}"
+                value_template: "{{ effective_mode in ['Fixed 4kW'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
@@ -530,7 +552,7 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ mode in ['Fast'] }}"
+                value_template: "{{ effective_mode in ['Fast'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
@@ -541,7 +563,7 @@ automation:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ mode in ['Limited', 'Solar'] }}"
+                value_template: "{{ effective_mode in ['Limited', 'Solar', 'Comfort'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}

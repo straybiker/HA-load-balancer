@@ -32,7 +32,7 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
 - Dynamically adjusts EV charging based on household power consumption.
 - Supports 3-phase electrical installations.
 - Car-aware functionality to meet minimum SOC targets by a set time.
-- Configurable modes: Off, Fixed (1.4kW or 4kW), Limited, and Fast.
+- Configurable modes: Off, Fixed (1.4kW or 4kW), Limited, Fast and Comfort.
 - Handles charger efficiency and measurement noise with filtering.
 - Phase switching protection to prevent frequent switching between 1 and 3 phases on days with alternating sun and clouds.
 
@@ -129,6 +129,7 @@ The available charge modes are:
 - Limited: Dynamic power limiting based on household consumption
 - Fast: Full speed charging at maximum current
 - Solar: Dynamic power based on solar production
+- Comfort: Behave as Limited below a SOC setting and as Solar above to guarantee a minimal SOC.
 
 ## Configuration and helpers
 Update the following variables in the script with your own sensors and parameters. The parameters can be hard coded or set with a helper variable if you want to control it from the UI
@@ -136,8 +137,8 @@ Update the following variables in the script with your own sensors and parameter
 ### Load balancer
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
-| `state`               | string | Parameter.        | Load balancer mode [Off, Fixed 1.4kW, Fixed 4kW, Fast, Limited, Solar]     |
-| `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false]                               |
+| `state`               | string | Parameter.        | Load balancer mode [Off, Fixed 1.4kW, Fixed 4kW, Fast, Limited, Solar, Comfort]|
+| `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false] for Limied mode               |
 | `power_limit`         | W    | Parameter           | Maximum power consumption limit including charging.                        |
 | `power_limit_extended`| W    | Parameter           | [Optional] Maximum power allowed overcharge to reach SOC                   |
 | `pv_prioritized`      | bool | Parameter           | Enable to make maximum use of solar power                                  |
@@ -180,9 +181,10 @@ Car configuration is optional and only needed when car_aware is enabled in the l
 
 ## Features
 
-### PV optimalization
+### PV optimalization for modes Limited, Solar and Comfort
  - pv_prioritized is only applicable to Limited mode and when enabled, the car will charge purely on solar power if the remaining solar power, not consumed by household consumption, is enough to charge the car. If there is not enough solar power, power from the grid will be used to charge up to power_limit. This combination is usefull to use as much solar power as possible but make sure the car is charged in the end.
  - With Solar charging, only remaining solar power is used. If this is not enough to charge the car, loading stops. This is useful if only need to be charged a little or the charger can be connected for 2 days or longer, such as in the weekend.
+ -In Comfort mode, the system behaves as Limited when the current SOC is below the minimum set and as Solar above. This is not the same as Limited with pv_prioritized enabled. In Comfort, charging stops when the minimum required SOC is reached, while in Limited it continues till the car is fully charged, using either solar or grid power. During the Limited cycle, car_aware and pv_prioritized are taken into account. 
 
 ### Efficiency Handling
 The system accounts for charger efficiency in all power calculations, by comparing the theoretical output with the real output:

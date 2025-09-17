@@ -32,7 +32,7 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
 - Dynamically adjusts EV charging based on household power consumption.
 - Supports 3-phase electrical installations.
 - Car-aware functionality to meet minimum SOC targets by a set time.
-- Configurable modes: Off, Minimal (1.4kW or 4kW), Eco, and Fast.
+- Configurable modes: Off, Fixed (1.4kW or 4kW), Limited, Fast and Comfort.
 - Handles charger efficiency and measurement noise with filtering.
 - Phase switching protection to prevent frequent switching between 1 and 3 phases on days with alternating sun and clouds.
 
@@ -121,13 +121,15 @@ When the charger is disconnected, the charger phases and current are set to a de
 > [!WARNING]
 > There is still a risk if Home Assistant becomes unavailable during charging with the charger set at 0A. Then you need to configure the charger directly on the charger such as [Eve Connect](https://alfen.com/en-be/eve-connect) app or ACE Service Installer for the Alfen Eve Pro. Check your charger's manufacturer manual.
 
-The loading behavior can be adjusted by an input select:
-- Off: Do not charge
-- Minimal 1.4kW: Always charge at 1 phase, 6A
-- Minimal 4kW: Always charge at 3 phases, 6A
-- Eco: Load balance based on the available rest power
-- Fast: Always load at 3 phases, 16A
-- Solar: Use only available solar power with a minimum of 1 phase 6A. When there is less solar power available charging stops.
+## Charge Modes
+The available charge modes are:
+- Off: Charging disabled
+- Fixed 1.4kW: Single phase charging at 6A (1.4kW)
+- Fixed 4kW: Three phase charging at 6A (4kW)
+- Limited: Dynamic power limiting based on household consumption
+- Fast: Full speed charging at maximum current
+- Solar: Dynamic power based on solar production
+- Comfort: Behave as Limited below a SOC setting and as Solar above to guarantee a minimal SOC.
 
 ## Configuration and helpers
 Update the following variables in the script with your own sensors and parameters. The parameters can be hard coded or set with a helper variable if you want to control it from the UI
@@ -135,11 +137,12 @@ Update the following variables in the script with your own sensors and parameter
 ### Load balancer
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
-| `state`               | string | Parameter.        | Load balancer mode [Off, Minimal 1.4kW, Minimal 4kW, Fast, Eco, Solar]     |
-| `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false]                               |
+| `state`               | string | Parameter.        | Load balancer mode [Off, Fixed 1.4kW, Fixed 4kW, Fast, Limited, Solar, Comfort]|
+| `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false] for Limied mode               |
 | `power_limit`         | W    | Parameter           | Maximum power consumption limit including charging.                        |
 | `power_limit_extended`| W    | Parameter           | [Optional] Maximum power allowed overcharge to reach SOC                   |
-| `pv_prioritized`      | bool | Parameter           | Enable to make maximum use of solar power                                 |
+| `pv_prioritized`      | bool | Parameter           | Enable to make maximum use of solar power                                  |
+| `single_phase_only`   | bool | Parameter           | Limit to phase output to 1 phase only                                      |
 
 ### Charger
 | Variable              | Unit | Type                | Description                                                                |
@@ -176,42 +179,60 @@ Car configuration is optional and only needed when car_aware is enabled in the l
 >[!Tip]
 >Once the monthly peak consumption passes the set power limit of the loadbalancer, you can increase this limit to the new monthly peak via an automation. Do not forget to reset this at the beginning of the month.
 
-## PV optimalization
- - pv_prioritized is only applicable to Eco mode and when enabled, the car will charge purely on solar power if the remaining solar power, not consumed by household consumption, is enough to charge the car. If there is not enough solar power, power from the grid will be used to charge up to power_limit. This combination is usefull to use as much solar power as possible but make sure the car is charged in the end.
+## Features
+
+### PV optimalization for modes Limited, Solar and Comfort
+ - pv_prioritized is only applicable to Limited mode and when enabled, the car will charge purely on solar power if the remaining solar power, not consumed by household consumption, is enough to charge the car. If there is not enough solar power, power from the grid will be used to charge up to power_limit. This combination is usefull to use as much solar power as possible but make sure the car is charged in the end.
  - With Solar charging, only remaining solar power is used. If this is not enough to charge the car, loading stops. This is useful if only need to be charged a little or the charger can be connected for 2 days or longer, such as in the weekend.
+ -In Comfort mode, the system behaves as Limited when the current SOC is below the minimum set and as Solar above. This is not the same as Limited with pv_prioritized enabled. In Comfort, charging stops when the minimum required SOC is reached, while in Limited it continues till the car is fully charged, using either solar or grid power. During the Limited cycle, car_aware and pv_prioritized are taken into account. 
 
-## Frequent Phase Switching Protection
-The load balancer includes a phase switching protection mechanism to prevent frequent switches between 1 and 3 phases:
+### Efficiency Handling
+The system accounts for charger efficiency in all power calculations, by comparing the theoretical output with the real output:
+- Available power is adjusted using measured charger efficiency
+- Phase selection considers efficiency losses
+- Current calculations include efficiency compensation
+- Efficiency is calculated dynamically based on actual power measurements
+- Fallback to 100% efficiency when no valid measurements available
 
-- When switching from 3 phases to 1 phase in Eco or Solar mode, a timer is started. Default 5 minutes.
-- During this period, the charger will not switch back to 3 phases even if more power becomes available
-- This protection does not apply to manual mode changes (e.g., switching to "Minimal 1.4kW" or "Minimal 4kW")
-- The timer duration can be adjusted in the `timer.ev_load_balancer_phase_switching_timer` configuration
-
-## Robust Sensor Validity Check and Fallback
-If any required sensor or attribute for the selected charge mode is unavailable, unknown, none, or non-numeric, the automation will:
-- Log an error to Home Assistant's system log: `[EV Load Balancer] Fallback to default charger values due to missing or invalid sensor data.`
-- Set the charger to its default current and phase, skipping all further logic.
-
-This check is mode-aware: car-related sensors are only checked if car-aware mode is enabled. This ensures safe and predictable operation even if some sensors are missing or temporarily unavailable.
-
-## Car-aware Mode Behavior
-
+### Car-aware Mode Behavior
 When car-aware mode is enabled (`car_aware: true`), the system checks for required car sensors:
 - battery_percentage
 - battery_capacity_wh
 - soc_time
 - soc_threshold
 
-If any of these sensors are unavailable:
-1. A warning is logged to Home Assistant
-2. The system continues operating with car_aware=false
-3. Uses charger default values for min/max current
+If any of these sensors are unavailable the system continues operating as were car_aware=false
 
 The current and phase limits are determined as follows:
 - With car_aware=true: Uses minimum of car and charger max current
 - With car_aware=false: Uses charger defaults
 - With unavailable car sensors: Falls back to charger defaults
+
+### Single Phase Operation
+The load balancer can be configured to operate in single phase mode only:
+- Toggle `Single Phase Only` in the configuration to force single phase operation
+- When enabled:
+  - All modes will operate in single phase regardless of power availability
+  - Fast mode will still use maximum current but only on single phase. This is the same as Fixed 4kW mode.
+  - Fixed 4kW mode will be limited to single phase operation. This is the same as Fast mode.
+  - Limited and Solar modes will calculate optimal current for single phase
+- Use this option if:
+  - Your installation only supports single phase charging
+  - You want to minimize the impact on phase balancing
+  - You prefer consistent single phase operation
+
+### Frequent Phase Switching Protection
+The load balancer includes a phase switching protection mechanism to prevent frequent switches between 1 and 3 phases:
+
+- When switching from 3 phases to 1 phase in Limied or Solar mode, a timer is started. Default 5 minutes.
+- During this period, the charger will not switch back to 3 phases even if more power becomes available. However, the utilization of the current is maximized on 1 phase. 
+- This protection does not apply to manual mode changes (e.g., switching to "Fixed 1.4kW" or "Fixed 4kW")
+- The timer duration can be adjusted in the `timer.ev_load_balancer_phase_switching_timer` configuration
+
+### Robust Sensor Validity Check and Fallback
+If any required sensor or attribute for the selected charge mode is unavailable, unknown, none, or non-numeric, the automation will:
+- Log an error to Home Assistant's system log: `[EV Load Balancer] Fallback to default charger values due to missing or invalid sensor data.`
+- Set the charger to its default current and phase, skipping all further logic.
 
 ## Future Developments
 - [x] Autocalculate charger efficiency.
@@ -220,7 +241,7 @@ The current and phase limits are determined as follows:
 - [x] Phase switching protection
 - [ ] Optimize for dynamic energy contracts.
 - [x] Provide as generic a Home Assistant package.
-- [ ] Option to limit to 1 phase in Eco mode.
+- [x] Option to limit to 1 phase only.
 - [ ] Implement a minimum charge power instead of switching off the charger.
 - [ ] Convert to a full Home Assistant integration.
 

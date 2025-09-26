@@ -38,7 +38,7 @@ template:
           default_phases: "{{ 3 | int }}"
           max_current: "{{ 16 | int }}"
           min_current: "{{ 6 | int }}"
-          default_current: "{{ 8 | int }}"
+          default_current: "{{ 7 | int }}"
           nominal_voltage: "{{ 230 | int }}"
           connection_state: >
             {% set m3 = states('sensor.alfen_eve_mode3_state_socket_1') %}

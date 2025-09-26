@@ -58,7 +58,7 @@ template:
           max_current: "{{ 16 | int }}"
           min_current: "{{ 6 | int }}"
           battery_capacity_wh: "{{ 80000 | int }}"
-          battery_percentage: "{{states('sensor.ix3_m_sport_remaining_battery_percent') | int(100)}}"
+          battery_percentage: "{{states('sensor.ix3_m_sport_remaining_battery_percent') | int}}"
           soc_time: "{{ states('input_datetime.ev_load_balancer_charge_time_target') }}"
           soc_threshold: "{{ states('input_number.ev_load_balancer_soc_threshold') | int(0)}}"
 

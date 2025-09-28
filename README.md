@@ -103,9 +103,6 @@ The load balancer also takes charger efficiency into account by comparing the ca
 > [!Note]
 > The maximum current can still be limited by the settings of the car. This setting can be checked by the external socket max current sensor. 
 
->[!IMPORTANT]
-> This load balancer switches between 3 phases power and a max current of 16A. 1 phase only is not supported.
-
 ![image](https://github.com/user-attachments/assets/bf4685fa-3eef-4814-b577-23d8f777e9c8)
 Here, during charging, the power is kept stable around 6000W, although major changes in the household power consumption. At 18h, the car was disconnected for a while. The spikes are measurement errors.
 

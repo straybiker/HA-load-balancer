@@ -37,7 +37,6 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
 - Phase switching protection to prevent frequent switching between 1 and 3 phases on days with alternating sun and clouds.
 
 ## Prerequisites
-- **3-phase electrical installation**: 1-phase only is not yet supported.
 - **EV charger integration**: Only 1 socket is currently supported.
   - For the Alfen Eve Pro, install the Home Assistant HACS Alfen Wallbox integration: [Alfen Wallbox Integration](https://github.com/leeyuentuen/alfen_wallbox). Ensure active load balancing is disabled on the Alfen charger to avoid conflicts. Minimum version: 2.9.4.
 - **Household power consumption sensor** excluding charger power consumption. 

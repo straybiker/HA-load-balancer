@@ -37,7 +37,6 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
 - Phase switching protection to prevent frequent switching between 1 and 3 phases on days with alternating sun and clouds.
 
 ## Prerequisites
-- **3-phase electrical installation**: 1-phase only is not yet supported.
 - **EV charger integration**: Only 1 socket is currently supported.
   - For the Alfen Eve Pro, install the Home Assistant HACS Alfen Wallbox integration: [Alfen Wallbox Integration](https://github.com/leeyuentuen/alfen_wallbox). Ensure active load balancing is disabled on the Alfen charger to avoid conflicts. Minimum version: 2.9.4.
 - **Household power consumption sensor** excluding charger power consumption. 
@@ -102,9 +101,6 @@ The load balancer also takes charger efficiency into account by comparing the ca
 
 > [!Note]
 > The maximum current can still be limited by the settings of the car. This setting can be checked by the external socket max current sensor. 
-
->[!IMPORTANT]
-> This load balancer switches between 3 phases power and a max current of 16A. 1 phase only is not supported.
 
 ![image](https://github.com/user-attachments/assets/bf4685fa-3eef-4814-b577-23d8f777e9c8)
 Here, during charging, the power is kept stable around 6000W, although major changes in the household power consumption. At 18h, the car was disconnected for a while. The spikes are measurement errors.

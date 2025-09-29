@@ -305,12 +305,7 @@ automation:
           {% set car_aware = state_attr('sensor.ev_load_balancer', 'car_aware') | bool %}
           {% if car_aware %}
             {% set battery_percentage = state_attr('sensor.ev_load_balancer_car', 'battery_percentage') %}
-            {% if battery_percentage in ['unavailable', 'unknown', None, 'none', 'None', ''] %}
-              # Ignore car_aware if there is no commincation with the car
-              {{ true }}
-            {% else %}
-              {{ (battery_percentage | int < 100) | bool }}
-            {% endif %}
+            {{ (battery_percentage | int(0) < 100) | bool }}
           {% else %}
             {{ true }}
           {% endif %}
@@ -598,11 +593,11 @@ automation:
     id: ev_load_balancer_phase_switching_timer_control
     description: Start timer when switching from 3 phase to 1 phase in Limited or Solar mode
     triggers:
-    - trigger: state
-      entity_id:
-        - select.alfen_eve_installation_max_allowed_phases
-      from: "3 Phases"
-      to: "1 Phase"
+      - trigger: state
+        entity_id:
+          - select.alfen_eve_installation_max_allowed_phases
+        from: "3 Phases"
+        to: "1 Phase"
     conditions:
       - condition: template
         value_template: >

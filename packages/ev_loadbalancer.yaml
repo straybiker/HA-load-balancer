@@ -200,32 +200,31 @@ script:
                  phase != states(state_attr('sensor.ev_load_balancer_charger','phases_output')) }}
         then:
           # Step 1: Set current to 0 first (only when switching from 1 to 3 phases)
-          - choose:
-              - conditions:
-                  - condition: template
-                    value_template: >
-                      {{ states(state_attr('sensor.ev_load_balancer_charger','phases_output')) == '1 Phase' and
-                         phase == '3 Phases' }}
-                sequence:
-                  - variables:
-                      max_delays: 30
-                  - alias: "Set current to 0 before phase change (1->3 phase)"
-                    action: number.set_value
-                    target:
-                      entity_id: "{{ state_attr('sensor.ev_load_balancer_charger','current_output') }}"
-                    data:
-                      value: 0
-                  # Wait for current to reach 0
-                  - alias: "Wait for current to reach 0"
-                    repeat:
-                      sequence:
-                        - delay:
-                            seconds: 1
-                      until:
-                        - condition: template
-                          value_template: >
-                            {{ state_attr('sensor.ev_load_balancer_charger','current_input') | int == 0 or
-                               repeat.index >= max_delays }}
+          - if:
+              - condition: template
+                value_template: >
+                  {{ states(state_attr('sensor.ev_load_balancer_charger','phases_output')) == '1 Phase' and
+                     phase == '3 Phases' }}
+            then:
+              - variables:
+                  max_delays: 30
+              - alias: "Set current to 0 before phase change (1->3 phase)"
+                action: number.set_value
+                target:
+                  entity_id: "{{ state_attr('sensor.ev_load_balancer_charger','current_output') }}"
+                data:
+                  value: 0
+              # Wait for current to reach 0
+              - alias: "Wait for current to reach 0"
+                repeat:
+                  sequence:
+                    - delay:
+                        seconds: 1
+                  until:
+                    - condition: template
+                      value_template: >
+                        {{ state_attr('sensor.ev_load_balancer_charger','current_input') | int == 0 or
+                           repeat.index >= max_delays }}
           # Step 2: Change phases
           - alias: "Change phases"
             action: system_log.write

@@ -318,15 +318,6 @@ automation:
         value_template: "{{ state_attr('sensor.ev_load_balancer_charger','connection_state') == 'Connected' }}"
       - condition: template
         value_template: |-
-          {% set car_aware = state_attr('sensor.ev_load_balancer', 'car_aware') | bool %}
-          {% if car_aware %}
-            {% set battery_percentage = state_attr('sensor.ev_load_balancer_car', 'battery_percentage') %}
-            {{ (battery_percentage | int(0) < 100) | bool }}
-          {% else %}
-            {{ true }}
-          {% endif %}
-      - condition: template
-        value_template: |-
           {{ has_value( state_attr('sensor.ev_load_balancer_charger','phases_output')) and 
           has_value( state_attr('sensor.ev_load_balancer_charger','current_output')) }}
       - condition: template

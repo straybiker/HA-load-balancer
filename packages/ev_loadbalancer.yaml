@@ -191,7 +191,7 @@ script:
     sequence:
       - variables:
           finalcurrent: "{{ 0 if current < min_current else current }}"
-          phase: "{{ '3 Phases' if phase == 3 else '1 Phase' }}"
+          phase: "{{ '3 Phases' if phase|int == 3 else '1 Phase' }}"
       # First handle any needed phase changes
       - if:
           - condition: template
@@ -469,7 +469,7 @@ automation:
               {% if state_attr('sensor.ev_load_balancer', 'pv_prioritized') and household_power < min_power_threshold %}
                 {% set power_left = (state_attr('sensor.ev_load_balancer_house', 'pv_power') | float) | int %}
               {% else %}
-                {% set power_left = (power_limit - household_power) / charger_efficiency %}
+                {% set power_left = (power_limit - household_power) | float %}
               {% endif %}
             {% endif %}
 
@@ -508,7 +508,7 @@ automation:
                   ] %}
                   {{ base_sensors | select('in', ['unavailable', 'unknown', None, 'none', 'None', '']) | list | count > 0 }}
             sequence:
-              - service: system_log.write
+              - action: system_log.write
                 data:
                   level: error
                   message: "[EV Load Balancer] Base sensors unavailable or invalid - fallback to default charger values."

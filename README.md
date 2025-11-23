@@ -134,7 +134,7 @@ Update the following variables in the script with your own sensors and parameter
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
 | `state`               | string | Parameter.        | Load balancer mode [Off, Fixed 1.4kW, Fixed 4kW, Fast, Limited, Solar, Comfort]|
-| `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false] for Limied mode               |
+| `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false] for Limited mode              |
 | `power_limit`         | W    | Parameter           | Maximum power consumption limit including charging.                        |
 | `power_limit_extended`| W    | Parameter           | [Optional] Maximum power allowed overcharge to reach SOC                   |
 | `pv_prioritized`      | bool | Parameter           | Enable to make maximum use of solar power                                  |
@@ -144,15 +144,15 @@ Update the following variables in the script with your own sensors and parameter
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
 | `active_power`        | W    | Sensor              | Current active power of the charger to calculate charger efficiency.       |
-| `connection_state`    |      | Sensor              | Connection state of the changer. [Disconnected, Connected]                 |
+| `connection_state`    |      | Sensor              | Connection state of the charger. [Disconnected, Connected]                 |
 | `current_input`       | A    | Sensor              | Active current of the charger.                                             |
 | `current_output`      | A    | Output entity       | Current setting of the charger.                                            |
-| `default_current`     | A    | Parameter           | Default current to reset the charger of diconnecting.                      |
+| `default_current`     | A    | Parameter           | Default current to reset the charger of disconnecting.                     |
 | `default_phases`      |      | Parameter           | Default phase selection to reset the charger after disconnecting. Charger dependant         |
 | `max_current`         | A    | Parameter           | Maximum supported current of the charger.                                  |
 | `min_current`         | A    | Parameter           | Minimum supported current of the charger.                                  |
 | `nominal_voltage`     | V    | Parameter           | Nominal operating voltage of the charger.                                  |
-| `phases_input`        |      | Sensor              | Active selected phases of the charger. Charger dependat                    |
+| `phases_input`        |      | Sensor              | Active selected phases of the charger. Charger dependent                   |
 | `phases_output`       |      | Output entity       | Phases setting of the charger. Charger dependant                           |
 
 ### Household
@@ -180,7 +180,7 @@ Car configuration is optional and only needed when car_aware is enabled in the l
 ### PV optimalization for modes Limited, Solar and Comfort
  - pv_prioritized is only applicable to Limited mode and when enabled, the car will charge purely on solar power if the remaining solar power, not consumed by household consumption, is enough to charge the car. If there is not enough solar power, power from the grid will be used to charge up to power_limit. This combination is usefull to use as much solar power as possible but make sure the car is charged in the end.
  - With Solar charging, only remaining solar power is used. If this is not enough to charge the car, loading stops. This is useful if only need to be charged a little or the charger can be connected for 2 days or longer, such as in the weekend.
- -In Comfort mode, the system behaves as Limited when the current SOC is below the minimum set and as Solar above. This is not the same as Limited with pv_prioritized enabled. In Comfort, charging stops when the minimum required SOC is reached, while in Limited it continues till the car is fully charged, using either solar or grid power. During the Limited cycle, car_aware and pv_prioritized are taken into account. 
+ - In Comfort mode, the system behaves as Limited when the current SOC is below the minimum set and as Solar above. This is not the same as Limited with pv_prioritized enabled. In Comfort, charging stops when the minimum required SOC is reached, while in Limited it continues till the car is fully charged, using either solar or grid power. During the Limited cycle, car_aware and pv_prioritized are taken into account. 
 
 ### Efficiency Handling
 The system accounts for charger efficiency in all power calculations, by comparing the theoretical output with the real output:
@@ -220,7 +220,7 @@ The load balancer can be configured to operate in single phase mode only:
 ### Frequent Phase Switching Protection
 The load balancer includes a phase switching protection mechanism to prevent frequent switches between 1 and 3 phases:
 
-- When switching from 3 phases to 1 phase in Limied or Solar mode, a timer is started. Default 5 minutes.
+- When switching from 3 phases to 1 phase in Limited or Solar mode, a timer is started. Default 5 minutes.
 - During this period, the charger will not switch back to 3 phases even if more power becomes available. However, the utilization of the current is maximized on 1 phase. 
 - This protection does not apply to manual mode changes (e.g., switching to "Fixed 1.4kW" or "Fixed 4kW")
 - The timer duration can be adjusted in the `timer.ev_load_balancer_phase_switching_timer` configuration
@@ -283,5 +283,4 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 5. Open a Pull Request
 
 ## License
-
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

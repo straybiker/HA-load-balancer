@@ -58,7 +58,7 @@ template:
           max_current: "{{ 16 | int }}"
           min_current: "{{ 6 | int }}"
           battery_capacity_wh: "{{ 80000 | int }}"
-          battery_percentage: "{{states('sensor.ix3_m_sport_remaining_battery_percent') | int}}"
+          battery_percentage: "{{states('sensor.ix3_m_sport_battery_hv_state_of_charge') | int}}"
           soc_time: "{{ states('input_datetime.ev_load_balancer_charge_time_target') }}"
           soc_threshold: "{{ states('input_number.ev_load_balancer_soc_threshold') | int(0)}}"
 
@@ -104,18 +104,15 @@ input_boolean:
   ev_load_balancer_pv_prioritized:
     name: EV Load Balancer Limited PV Prioritized
     icon: mdi:solar-power
-    initial: true
 
   ev_load_balancer_car_aware:
     ## Mandatory input
     name: EV Load Balancer Car Aware
     icon: mdi:car-electric
-    initial: true
 
   ev_load_balancer_single_phase_only:
     name: EV Load Balancer Single Phase Only
     icon: mdi:numeric-1-box
-    initial: false
 
 input_number:
   ## Mandatory input
@@ -157,7 +154,6 @@ input_number:
     min: 0
     max: 100
     step: 1
-    initial: 50
 
 input_datetime:
   ## Optional input: can be removed if car aware is not used

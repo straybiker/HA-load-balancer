@@ -1,0 +1,76 @@
+# User Specific Configuration for EV Load Balancer
+#
+# This file contains the user-specific configuration for the EV Load Balancer package.
+# It works in conjunction with ev_loadbalancer.yaml which contains the core logic.
+#
+# Update the following configuration to match your setup. All settings are stored
+# in attributes to simulate devices. Check the documentation for more details.
+#
+# Set car_aware to true to enable car-aware power management
+# Set pv_prioritized to true to enable PV-aware power management
+
+template:
+  - sensor:
+      # Household settings
+      - unique_id: ev_load_balancer_house
+        name: "EV Load Balancer House"
+        state: "{{ states('sensor.netto_verbruik_huis_lp') | int }}"
+        icon: mdi:home-lightning-bolt
+        device_class: power
+        unit_of_measurement: "W"
+        attributes:
+          pv_power: "{{ states('sensor.sma_power_w') }}"
+
+      # Charger settings
+      - unique_id: ev_load_balancer_charger
+        name: "EV Load Balancer Charger"
+        state: "Alfen Eve Pro Single"
+        icon: mdi:ev-station
+        attributes:
+          # note the definition of the output variables
+          active_power: "{{ states('sensor.alfen_eve_active_power_total_socket_1') }}"
+          current_input: "{{ states('sensor.alfen_eve_main_active_max_current_socket_1') }}"
+          current_output: number.alfen_eve_power_connector_max_current_socket_1
+          phases_input: "{{ states('sensor.alfen_eve_connector_1_max_allowed_of_phases') }}"
+          phases_output: select.alfen_eve_installation_max_allowed_phases
+          # max_phases: "{{ 3 | int }}" for future development
+          default_phases: "{{ 3 | int }}"
+          max_current: "{{ 16 | int }}"
+          min_current: "{{ 6 | int }}"
+          default_current: "{{ 7 | int }}"
+          nominal_voltage: "{{ 230 | int }}"
+          phase_1_state: "1 Phase"
+          phase_3_state: "3 Phases"
+          connection_state: >
+            {% set m3 = states('sensor.alfen_eve_mode3_state_socket_1') %}
+            {% if m3 in ['STATE_A', 'STATE_E'] %} Disconnected
+            {% elif m3 in ['STATE_B1', 'STATE_B2', 'STATE_C1', 'STATE_D1', 'STATE_C2', 'STATE_D2'] %} Connected
+            {% elif m3 in ['STATE_F'] %} Error
+            # {% else %} unavailable
+            {% endif %}
+
+      # Cars settings
+      - unique_id: ev_load_balancer_car
+        name: "EV Load Balancer Car"
+        state: "BMW iX3"
+        icon: mdi:car-electric
+        # Required parameters
+        attributes:
+          max_current: "{{ 16 | int }}"
+          min_current: "{{ 6 | int }}"
+          battery_capacity_wh: "{{ 80000 | int }}"
+          battery_percentage: "{{states('sensor.ix3_m_sport_battery_hv_state_of_charge') | int}}"
+          soc_time: "{{ states('input_datetime.ev_load_balancer_charge_time_target') }}"
+          soc_threshold: "{{ states('input_number.ev_load_balancer_soc_threshold') | int(0)}}"
+
+      # Load balancer settings
+      - unique_id: ev_load_balancer
+        name: "EV Load Balancer"
+        state: "{{ states('input_select.ev_load_balancer_charge_mode') }}"
+        # Power settings
+        attributes:
+          power_limit: "{{ states('input_number.ev_load_balancer_power_limit') | int }}"
+          power_limit_extended: "{{ states('input_number.ev_load_balancer_extended_power_limit') | int }}"
+          car_aware: "{{ states('input_boolean.ev_load_balancer_car_aware') | bool }}"
+          pv_prioritized: "{{ states('input_boolean.ev_load_balancer_pv_prioritized') | bool }}"
+          single_phase_only: "{{ states('input_boolean.ev_load_balancer_single_phase_only') | bool }}"

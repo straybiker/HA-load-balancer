@@ -3,79 +3,8 @@
 
 ###################################################################################
 ## CONFIGURATION
-## Update the following configuration to match your setup. All settings are stored
-## in attributes to simulate devices. Check the documentation for more details.
-##
-## Set car_aware to true to enable car-aware power management
-## Set pv_prioritized to true to enable PV-aware power management
-###################################################################################
-
-template:
-  - sensor:
-      # Household settings
-      - unique_id: ev_load_balancer_house
-        name: "EV Load Balancer House"
-        state: "{{ states('sensor.netto_verbruik_huis_lp') | int }}"
-        icon: mdi:home-lightning-bolt
-        device_class: power
-        unit_of_measurement: "W"
-        attributes:
-          pv_power: "{{ states('sensor.sma_power_w') }}"
-
-      # Charger settings
-      - unique_id: ev_load_balancer_charger
-        name: "EV Load Balancer Charger"
-        state: "Alfen Eve Pro Single"
-        icon: mdi:ev-station
-        attributes:
-          # note the definition of the output variables
-          active_power: "{{ states('sensor.alfen_eve_active_power_total_socket_1') }}"
-          current_input: "{{ states('sensor.alfen_eve_main_active_max_current_socket_1') }}"
-          current_output: number.alfen_eve_power_connector_max_current_socket_1
-          phases_input: "{{ states('sensor.alfen_eve_connector_1_max_allowed_of_phases') }}"
-          phases_output: select.alfen_eve_installation_max_allowed_phases
-          # max_phases: "{{ 3 | int }}" for future development
-          default_phases: "{{ 3 | int }}"
-          max_current: "{{ 16 | int }}"
-          min_current: "{{ 6 | int }}"
-          default_current: "{{ 7 | int }}"
-          nominal_voltage: "{{ 230 | int }}"
-          connection_state: >
-            {% set m3 = states('sensor.alfen_eve_mode3_state_socket_1') %}
-            {% if m3 in ['STATE_A', 'STATE_E'] %} Disconnected
-            {% elif m3 in ['STATE_B1', 'STATE_B2', 'STATE_C1', 'STATE_D1', 'STATE_C2', 'STATE_D2'] %} Connected
-            {% elif m3 in ['STATE_F'] %} Error
-            # {% else %} unavailable
-            {% endif %}
-
-      # Cars settings
-      - unique_id: ev_load_balancer_car
-        name: "EV Load Balancer Car"
-        state: "BMW iX3"
-        icon: mdi:car-electric
-        # Required parameters
-        attributes:
-          max_current: "{{ 16 | int }}"
-          min_current: "{{ 6 | int }}"
-          battery_capacity_wh: "{{ 80000 | int }}"
-          battery_percentage: "{{states('sensor.ix3_m_sport_battery_hv_state_of_charge') | int}}"
-          soc_time: "{{ states('input_datetime.ev_load_balancer_charge_time_target') }}"
-          soc_threshold: "{{ states('input_number.ev_load_balancer_soc_threshold') | int(0)}}"
-
-      # Load balancer settings
-      - unique_id: ev_load_balancer
-        name: "EV Load Balancer"
-        state: "{{ states('input_select.ev_load_balancer_charge_mode') }}"
-        # Power settings
-        attributes:
-          power_limit: "{{ states('input_number.ev_load_balancer_power_limit') | int }}"
-          power_limit_extended: "{{ states('input_number.ev_load_balancer_extended_power_limit') | int }}"
-          car_aware: "{{ states('input_boolean.ev_load_balancer_car_aware') | bool }}"
-          pv_prioritized: "{{ states('input_boolean.ev_load_balancer_pv_prioritized') | bool }}"
-          single_phase_only: "{{ states('input_boolean.ev_load_balancer_single_phase_only') | bool }}"
-
-###################################################################################
-## END CONFIGURATION
+## The configuration has been moved to ev_loadbalancer_user_config.yaml
+## Please check that file to update your settings.
 ###################################################################################
 
 ###################################################################################
@@ -167,6 +96,14 @@ input_datetime:
 ## END INPUTS
 ###################################################################################
 
+template:
+  - sensor:
+      - name: "EV Load Balancer Internal Phase Monitor"
+        unique_id: ev_load_balancer_internal_phase_monitor
+        state: >
+          {% set phases_entity = state_attr('sensor.ev_load_balancer_charger', 'phases_output') %}
+          {{ states(phases_entity) if phases_entity else 'unknown' }}
+
 timer:
   ev_load_balancer_phase_switching_timer:
     name: EV Load Balancer Phase Switching Timer
@@ -180,6 +117,8 @@ script:
     variables:
       charger: "{{ states('sensor.ev_load_balancer_charger') }}"
       car_aware: "{{ state_attr('sensor.ev_load_balancer', 'car_aware') }}"
+      phase_1: "{{ state_attr('sensor.ev_load_balancer_charger', 'phase_1_state') | default('1 Phase', true) }}"
+      phase_3: "{{ state_attr('sensor.ev_load_balancer_charger', 'phase_3_state') | default('3 Phases', true) }}"
       min_current: >
         {% set charger_min_current = state_attr('sensor.ev_load_balancer_charger', 'min_current') %}
         {% set car_min_current = state_attr('sensor.ev_load_balancer_car', 'min_current') %}
@@ -187,7 +126,7 @@ script:
     sequence:
       - variables:
           finalcurrent: "{{ 0 if current < min_current else current }}"
-          phase: "{{ '3 Phases' if phase|int == 3 else '1 Phase' }}"
+          phase: "{{ phase_3 if phase|int == 3 else phase_1 }}"
       # First handle any needed phase changes
       - if:
           - condition: template
@@ -199,8 +138,8 @@ script:
           - if:
               - condition: template
                 value_template: >
-                  {{ states(state_attr('sensor.ev_load_balancer_charger','phases_output')) == '1 Phase' and
-                     phase == '3 Phases' }}
+                  {{ states(state_attr('sensor.ev_load_balancer_charger','phases_output')) == phase_1 and
+                     phase == phase_3 }}
             then:
               - variables:
                   max_delays: 30
@@ -285,8 +224,8 @@ script:
             multiple: false
         name: phase
         required: false
-        description: EV charging phase [1 Phase, 3 Phases]
-        default: 1 Phase
+        description: EV charging phase [1 Phase, 3 Phases] (input as integer 1 or 3)
+        default: 1
       current:
         selector:
           number:
@@ -328,6 +267,8 @@ automation:
           power_limit_extended: "{{ state_attr('sensor.ev_load_balancer','power_limit_extended') | int }}"
           power_limit_normal: "{{ state_attr('sensor.ev_load_balancer','power_limit') | int }}"
           nominal_voltage: "{{ state_attr('sensor.ev_load_balancer_charger','nominal_voltage') | int(230) }}"
+          phase_1: "{{ state_attr('sensor.ev_load_balancer_charger', 'phase_1_state') | default('1 Phase', true) }}"
+          phase_3: "{{ state_attr('sensor.ev_load_balancer_charger', 'phase_3_state') | default('3 Phases', true) }}"
           selected_mode: "{{ states('sensor.ev_load_balancer') }}"
 
           # Determine effective mode for Comfort mode
@@ -389,7 +330,7 @@ automation:
 
           # Calculate efficiency using sensor states with proper variable references
           charger_efficiency: >
-            {% set phase_count = 3 if charger_phases_input == "3 Phases" else 1 %}
+            {% set phase_count = 3 if charger_phases_input == phase_3 else 1 %}
             {% if charger_current_input > 0 and charger_power > 1000.0 %}
             {{ charger_power / (charger_current_input * nominal_voltage * phase_count) }}
             {% else %}
@@ -474,7 +415,7 @@ automation:
           adjusted_phase_selection: >
             {% set force_single = state_attr('sensor.ev_load_balancer', 'single_phase_only') | bool %}
             {% set desired_phase = 1 if force_single else (3 if adjusted_available_power_final >= (nominal_voltage * min_current * 3) else 1) %}
-            {% set current_phase = 3 if states(state_attr('sensor.ev_load_balancer_charger','phases_output')) == '3 Phases' else 1 %}
+            {% set current_phase = 3 if states(state_attr('sensor.ev_load_balancer_charger','phases_output')) == phase_3 else 1 %}
             {% if desired_phase > current_phase and states('timer.ev_load_balancer_phase_switching_timer') == 'active' %}
               {{ current_phase }}
             {% else %}
@@ -597,11 +538,14 @@ automation:
     description: Start timer when switching from 3 phase to 1 phase in Limited or Solar mode
     triggers:
       - trigger: state
-        entity_id:
-          - select.alfen_eve_installation_max_allowed_phases
-        from: "3 Phases"
-        to: "1 Phase"
+        entity_id: sensor.ev_load_balancer_internal_phase_monitor
     conditions:
+      - condition: template
+        value_template: >
+          {% set phase_1 = state_attr('sensor.ev_load_balancer_charger', 'phase_1_state') | default('1 Phase', true) %}
+          {% set phase_3 = state_attr('sensor.ev_load_balancer_charger', 'phase_3_state') | default('3 Phases', true) %}
+          {{ trigger.to_state is defined and trigger.to_state.state == phase_1 and 
+            (trigger.from_state is not defined or trigger.from_state is none or trigger.from_state.state != phase_1) }}
       - condition: template
         value_template: >
           {{ states('sensor.ev_load_balancer') in ['Limited', 'Solar'] }}

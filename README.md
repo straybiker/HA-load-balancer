@@ -41,14 +41,15 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
   - For the Alfen Eve Pro, install the Home Assistant HACS Alfen Wallbox integration: [Alfen Wallbox Integration](https://github.com/leeyuentuen/alfen_wallbox). Ensure active load balancing is disabled on the Alfen charger to avoid conflicts. Minimum version: 2.9.4.
 - **Household power consumption sensor** excluding charger power consumption. 
 > [!TIP]
-> If you can't measure the household power consumption seperately, create helpers to calculate the to subtract the charger power from the total power consumption
+> If you can't measure the household power consumption seperately, create helpers to calculate the household power by subtracting the charger power from the total power consumption
 
 ## Installation
 ### Step 1: Package Installation
-Follow the [Home Assistant package documentation](https://www.home-assistant.io/docs/configuration/packages/) for installation details. The package file is located in the `package` folder.
+Follow the [Home Assistant package documentation](https://www.home-assistant.io/docs/configuration/packages/) for installation details. The package files are located in the `packages` folder. You need to copy both `ev_loadbalancer.yaml` and `ev_loadbalancer_user_config.yaml`.
 
 ### Step 2: Configuration
-Update the configuration section to your specific setup and check the configuration from the developer YAML section.
+Update `packages/ev_loadbalancer_user_config.yaml` to your specific setup and check the configuration from the developer YAML section.
+The main logic file `packages/ev_loadbalancer.yaml` should not be modified to allow for easy updates.
 If you don't need Car Aware functionality, the settings in the car configuration can be emptied
 
 > [!TIP]
@@ -128,7 +129,7 @@ The available charge modes are:
 - Comfort: Behave as Limited below a SOC setting and as Solar above to guarantee a minimal SOC.
 
 ## Configuration and helpers
-Update the following variables in the script with your own sensors and parameters. The parameters can be hard coded or set with a helper variable if you want to control it from the UI
+Update the following variables in the `packages/ev_loadbalancer_user_config.yaml` script with your own sensors and parameters. The parameters can be hard coded or set with a helper variable if you want to control it from the UI
 
 ### Load balancer
 | Variable              | Unit | Type                | Description                                                                |
@@ -148,12 +149,14 @@ Update the following variables in the script with your own sensors and parameter
 | `current_input`       | A    | Sensor              | Active current of the charger.                                             |
 | `current_output`      | A    | Output entity       | Current setting of the charger.                                            |
 | `default_current`     | A    | Parameter           | Default current to reset the charger of disconnecting.                     |
-| `default_phases`      |      | Parameter           | Default phase selection to reset the charger after disconnecting. Charger dependant         |
+| `default_phases`      |      | Parameter           | Default phase selection to reset the charger after disconnecting. Charger dependent         |
+| `phase_1_state`       |      | Parameter           | String value representing 1 phase state of the charger. Default: "1 Phase" |
+| `phase_3_state`       |      | Parameter           | String value representing 3 phase state of the charger. Default: "3 Phases" |
 | `max_current`         | A    | Parameter           | Maximum supported current of the charger.                                  |
 | `min_current`         | A    | Parameter           | Minimum supported current of the charger.                                  |
 | `nominal_voltage`     | V    | Parameter           | Nominal operating voltage of the charger.                                  |
 | `phases_input`        |      | Sensor              | Active selected phases of the charger. Charger dependent                   |
-| `phases_output`       |      | Output entity       | Phases setting of the charger. Charger dependant                           |
+| `phases_output`       |      | Output entity       | Phases setting of the charger. Charger dependent                           |
 
 ### Household
 | Variable              | Unit | Type                | Description                                                                |
@@ -177,7 +180,7 @@ Car configuration is optional and only needed when car_aware is enabled in the l
 
 ## Features
 
-### PV optimalization for modes Limited, Solar and Comfort
+### PV optimization for modes Limited, Solar and Comfort
  - pv_prioritized is only applicable to Limited mode and when enabled, the car will charge purely on solar power if the remaining solar power, not consumed by household consumption, is enough to charge the car. If there is not enough solar power, power from the grid will be used to charge up to power_limit. This combination is usefull to use as much solar power as possible but make sure the car is charged in the end.
  - With Solar charging, only remaining solar power is used. If this is not enough to charge the car, loading stops. This is useful if only need to be charged a little or the charger can be connected for 2 days or longer, such as in the weekend.
  - In Comfort mode, the system behaves as Limited when the current SOC is below the minimum set and as Solar above. This is not the same as Limited with pv_prioritized enabled. In Comfort, charging stops when the minimum required SOC is reached, while in Limited it continues till the car is fully charged, using either solar or grid power. During the Limited cycle, car_aware and pv_prioritized are taken into account. 

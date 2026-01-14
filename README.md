@@ -18,6 +18,15 @@ A car charging load balancer for Home Assistant tailored to Belgian energy regul
 - [Contributing](#contributing)
 - [License](#license)
 
+>[!WARNING]
+>CRITICAL WARNING: Flash Memory Wear
+>Are you changing this current frequently (e.g., every minute for Solar Charging/Eco mode)?
+>The integration uses register 2129_0 to control output current. This ID writes to the charger's EEPROM/Flash Memory.
+>Flash memory has a limited number of write cycles (typically ~100,000). If you update this every minute, you will physically destroy the charger's memory chip within a few months.
+>Use Active Load Balancing instead.
+>For frequent updates, you should enable "Active Load Balancing" on the charger (licensed feature) and write to the volatile memory register.
+
+
 ## Introduction
 This Home Assistant automation provides intelligent load balancing for EV charging, designed to minimize energy costs and avoid exceeding your maximum power limit (capaciteitspiek) under Belgian energy regulations. By dynamically adjusting the charging phases and current based on your household's power consumption, this system helps you charge your EV efficiently without exceeding a set peak power (capaciteitstarief).
 

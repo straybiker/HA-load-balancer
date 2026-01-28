@@ -18,15 +18,6 @@ A car charging load balancer for Home Assistant tailored to Belgian energy regul
 - [Contributing](#contributing)
 - [License](#license)
 
->[!WARNING]
->CRITICAL WARNING: Flash Memory Wear
->Are you changing this current frequently (e.g., every minute for Solar Charging/Eco mode)?
->The integration uses register 2129_0 to control output current. This ID writes to the charger's EEPROM/Flash Memory.
->Flash memory has a limited number of write cycles (typically ~100,000). If you update this every minute, you will physically destroy the charger's memory chip within a few months.
->Use Active Load Balancing instead.
->For frequent updates, you should enable "Active Load Balancing" on the charger (licensed feature) and write to the volatile memory register.
-
-
 ## Introduction
 This Home Assistant automation provides intelligent load balancing for EV charging, designed to minimize energy costs and avoid exceeding your maximum power limit (capaciteitspiek) under Belgian energy regulations. By dynamically adjusting the charging phases and current based on your household's power consumption, this system helps you charge your EV efficiently without exceeding a set peak power (capaciteitstarief).
 
@@ -47,8 +38,19 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
 
 ## Prerequisites
 - **EV charger integration**: Only 1 socket is currently supported.
-  - For the Alfen Eve Pro, install the Home Assistant HACS Alfen Wallbox integration: [Alfen Wallbox Integration](https://github.com/leeyuentuen/alfen_wallbox). Ensure active load balancing is disabled on the Alfen charger to avoid conflicts. Minimum version: 2.9.4.
-- **Household power consumption sensor** excluding charger power consumption. 
+- **Household power consumption sensor** excluding charger power consumption.
+- For the Alfen Eve Pro
+  - Active Load Balancing enabled
+  - Install the Home Assistant HACS Alfen WallboxModbus integration: [Alfen Modbus Integration](https://github.com/straybiker/alfen_modbus).
+
+>[!WARNING]
+>CRITICAL WARNING: Flash Memory Wear on Alfen Eve
+>Do not use Home Assistant integration [Alfen Wallbox](https://github.com/leeyuentuen/alfen_wallbox).
+>The integration uses register 2129_0 to control output current. This ID writes to the charger's EEPROM/Flash Memory.
+>Flash memory has a limited number of write cycles (typically ~100,000). If you update this every minute, you will physically destroy the charger's memory chip within a few months.
+>Use Active Load Balancing instead with Modbus.
+>The Alfen Wallbox can be used for reading data.
+ 
 > [!TIP]
 > If you can't measure the household power consumption seperately, create helpers to calculate the household power by subtracting the charger power from the total power consumption
 

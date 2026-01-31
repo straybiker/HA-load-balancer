@@ -546,7 +546,7 @@ automation:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
                 data:
-                  current: "{{ adjusted_current_limit | int }}"
+                  current: "{{ adjusted_current_limit }}"
                   phase: "{{ adjusted_phase_selection }}"
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params

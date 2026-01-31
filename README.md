@@ -35,6 +35,7 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
 - Configurable modes: Off, Fixed (1.4kW or 4kW), Limited, Fast and Comfort.
 - Handles charger efficiency and measurement noise with filtering.
 - Phase switching protection to prevent frequent switching between 1 and 3 phases on days with alternating sun and clouds.
+- **EMS Integration:** External control of charging modes based on price/grid signals.
 
 ## Prerequisites
 - **EV charger integration**: Only 1 socket is currently supported.
@@ -146,11 +147,14 @@ Update the following variables in the `packages/ev_loadbalancer_user_config.yaml
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
 | `state`               | string | Parameter.        | Load balancer mode [Off, Fixed 1.4kW, Fixed 4kW, Fast, Limited, Solar, Comfort]|
+| `ems_signal_entity`   | string | Parameter.        | [Optional] Binary sensor for EMS control (on=Cheap, off=Expensive)         |
 | `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false] for Limited mode              |
 | `power_limit`         | W    | Parameter           | Maximum power consumption limit including charging.                        |
 | `power_limit_extended`| W    | Parameter           | [Optional] Maximum power allowed overcharge to reach SOC                   |
 | `pv_prioritized`      | bool | Parameter           | Enable to make maximum use of solar power                                  |
 | `single_phase_only`   | bool | Parameter           | Limit to phase output to 1 phase only                                      |
+| `power_update_threshold`| W    | Parameter           | [Optional] Minimum power change (W) before updating charger. Defaults to 230W if not set. |
+| `phase_switch_delay`| min    | Parameter           | [Optional] Delay in minutes before updating charger. Defaults to 5 minutes if not set. |
 
 ### Charger
 | Variable              | Unit | Type                | Description                                                                |
@@ -172,7 +176,7 @@ Update the following variables in the `packages/ev_loadbalancer_user_config.yaml
 ### Household
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
-| `household_power`     | W    | Sensor              | Smoothed household power consumption excluding the charger.                |
+| `household_power`     | W    | Sensor              | Smoothed household power consumption including solar production but excluding the charger. So it can be negative if there is a surplus of solar power.               |
 | `pv_power`            | W    | Sensor              | [Optional] Smoothed PV generated power.                                    |
 
 ### Car
@@ -239,6 +243,23 @@ The load balancer includes a phase switching protection mechanism to prevent fre
 - This protection does not apply to manual mode changes (e.g., switching to "Fixed 1.4kW" or "Fixed 4kW")
 - The timer duration can be adjusted in the `timer.ev_load_balancer_phase_switching_timer` configuration
 
+### EMS Integration (Dynamic Pricing)
+Enable the "EV Load Balancer EMS Mode Control" toggle to let an external EMS (Energy Management System) control the charging logic based on price or grid availability.
+
+**Logic Matrix:**
+| Mode Selected | EMS Control: ON (+ Signal ON) | EMS Control: ON (+ Signal OFF) | EMS Control: OFF |
+|---------------|-------------------------------|--------------------------------|-------------------|
+| **Solar** | **Limited** (Charge Hard) | **Off** | Solar |
+| **Limited** | **Limited** (Charge Hard) | **Off** | Limited |
+| **1-Ph Min** | **1-Ph Min** (Fixed Rate) | **Off** | 1-Ph Min |
+| **3-Ph Min** | **3-Ph Min** (Fixed Rate) | **Off** | 3-Ph Min |
+| **Comfort** | Limited (if low SOC) OR Limited | Limited (if low SOC) OR Off/Solar | Comfort Logic |
+| **Off** | Off | Off | Off |
+
+**Configuration:**
+1. Point `ems_signal_entity` to your binary sensor (e.g., `binary_sensor.electricity_is_cheap`).
+2. Toggle `input_boolean.ev_load_balancer_ems_control` to ON.
+
 ### Robust Sensor Validity Check and Fallback
 If any required sensor or attribute for the selected charge mode is unavailable, unknown, none, or non-numeric, the automation will:
 - Log an error to Home Assistant's system log: `[EV Load Balancer] Fallback to default charger values due to missing or invalid sensor data.`
@@ -249,7 +270,7 @@ If any required sensor or attribute for the selected charge mode is unavailable,
 - [x] Make car awareness optional.
 - [x] Option to prioritize PV consumption.
 - [x] Phase switching protection
-- [ ] Optimize for dynamic energy contracts.
+- [x] Optimize for dynamic energy contracts (EMS Integration).
 - [x] Provide as generic a Home Assistant package.
 - [x] Option to limit to 1 phase only.
 - [ ] Implement a minimum charge power instead of switching off the charger.

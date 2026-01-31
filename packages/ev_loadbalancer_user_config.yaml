@@ -14,7 +14,7 @@ template:
       # Household settings
       - unique_id: ev_load_balancer_house
         name: "EV Load Balancer House"
-        state: "{{ states('sensor.netto_verbruik_huis_lp') | int }}"
+        state: "{{ states('sensor.netto_verbruik_huis_lp') | int(0) }}"
         icon: mdi:home-lightning-bolt
         device_class: power
         unit_of_measurement: "W"
@@ -28,24 +28,24 @@ template:
         icon: mdi:ev-station
         attributes:
           # note the definition of the output variables
-          active_power: "{{ states('sensor.alfen_eve_active_power_total_socket_1') }}"
-          current_input: "{{ states('sensor.alfen_eve_main_active_max_current_socket_1') }}"
-          current_output: number.alfen_eve_power_connector_max_current_socket_1
-          phases_input: "{{ states('sensor.alfen_eve_connector_1_max_allowed_of_phases') }}"
-          phases_output: select.alfen_eve_installation_max_allowed_phases
+          active_power: "{{ states('sensor.alfen_eve_real_power_sum') }}"
+          current_input: "{{ states('sensor.alfen_eve_actual_applied_max_current') }}"
+          current_output: number.alfen_eve_max_current_limit_s1
+          phases_input: "{{ states('sensor.alfen_eve_charging_mode') }}"
+          phases_output: select.alfen_eve_usable_phases1
           # max_phases: "{{ 3 | int }}" for future development
-          default_phases: "{{ 3 | int }}"
-          max_current: "{{ 16 | int }}"
+          default_phases: "{{ 1 | int }}"
+          max_current: "{{ states('sensor.alfen_eve_actual_max_current') | int }}"
           min_current: "{{ 6 | int }}"
           default_current: "{{ 7 | int }}"
           nominal_voltage: "{{ 230 | int }}"
           phase_1_state: "1 Phase"
           phase_3_state: "3 Phases"
           connection_state: >
-            {% set m3 = states('sensor.alfen_eve_mode3_state_socket_1') %}
-            {% if m3 in ['STATE_A', 'STATE_E'] %} Disconnected
-            {% elif m3 in ['STATE_B1', 'STATE_B2', 'STATE_C1', 'STATE_D1', 'STATE_C2', 'STATE_D2'] %} Connected
-            {% elif m3 in ['STATE_F'] %} Error
+            {% set m3 = states('sensor.alfen_eve_mode_3_state') %}
+            {% if m3 in ['A', 'E'] %} Disconnected
+            {% elif m3 in ['B1', 'B2', 'C1', 'D1', 'C2', 'D2'] %} Connected
+            {% elif m3 in ['F'] %} Error
             # {% else %} unavailable
             {% endif %}
 
@@ -74,3 +74,9 @@ template:
           car_aware: "{{ states('input_boolean.ev_load_balancer_car_aware') | bool }}"
           pv_prioritized: "{{ states('input_boolean.ev_load_balancer_pv_prioritized') | bool }}"
           single_phase_only: "{{ states('input_boolean.ev_load_balancer_single_phase_only') | bool }}"
+          # Optional: minimum power change (W) before updating charger. Defaults to 230W if not set.
+          power_update_threshold: "{{ 230 | float }}"
+          # Phase switching delay in minutes (default: 5)
+          phase_switch_delay: "{{ 5 | int }}"
+          # Binary sensor entity from EMS (on = Cheap/Charge, off = Expensive/Wait)
+          ems_signal_entity: "binary_sensor.my_ems_charge_signal"

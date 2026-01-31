@@ -21,8 +21,8 @@ input_select:
     icon: mdi:ev-station
     options:
       - "Off"
-      - "Fixed 1.4kW"
-      - "Fixed 4kW"
+      - "1-Phase Minimum"
+      - "3-Phases Minimum"
       - "Limited"
       - "Fast"
       - "Solar"
@@ -42,6 +42,10 @@ input_boolean:
   ev_load_balancer_single_phase_only:
     name: EV Load Balancer Single Phase Only
     icon: mdi:numeric-1-box
+
+  ev_load_balancer_ems_control:
+    name: EV Load Balancer EMS Mode Control
+    icon: mdi:home-lightning-bolt-outline
 
 input_number:
   ## Mandatory input
@@ -132,14 +136,13 @@ script:
           - condition: template
             value_template: >
               {{ has_value(state_attr('sensor.ev_load_balancer_charger','phases_output')) and
-                 phase != states(state_attr('sensor.ev_load_balancer_charger','phases_output')) }}
+                phase != states(state_attr('sensor.ev_load_balancer_charger','phases_output')) }}
         then:
           # Step 1: Set current to 0 first (only when switching from 1 to 3 phases)
           - if:
               - condition: template
                 value_template: >
-                  {{ states(state_attr('sensor.ev_load_balancer_charger','phases_output')) == phase_1 and
-                     phase == phase_3 }}
+                  {{ states(state_attr('sensor.ev_load_balancer_charger','phases_output')) == phase_1 and phase == phase_3 }}
             then:
               - variables:
                   max_delays: 30
@@ -159,7 +162,7 @@ script:
                     - condition: template
                       value_template: >
                         {{ state_attr('sensor.ev_load_balancer_charger','current_input') | int == 0 or
-                           repeat.index >= max_delays }}
+                          repeat.index >= max_delays }}
           # Step 2: Change phases
           - alias: "Change phases"
             action: system_log.write
@@ -182,15 +185,21 @@ script:
               until:
                 - condition: template
                   value_template: >
-                    {{ state_attr('sensor.ev_load_balancer_charger', 'phases_input') == phase or
-                       repeat.index >= max_delays }}
+                    {{ state_attr('sensor.ev_load_balancer_charger', 'phases_input') == phase or repeat.index >= max_delays }}
       # After phase change or if no phase change needed, set the final current
       # Set the final current if needed
       - if:
           - condition: template
             value_template: "{{ has_value(state_attr('sensor.ev_load_balancer_charger','current_output')) }}"
           - condition: template
-            value_template: "{{ finalcurrent | int != states(state_attr('sensor.ev_load_balancer_charger','current_output')) | int }}"
+            value_template: >
+              {% set power_threshold = state_attr('sensor.ev_load_balancer', 'power_update_threshold') | float(230) %}
+              {% set voltage = state_attr('sensor.ev_load_balancer_charger', 'nominal_voltage') | float(230) %}
+              {% set phases = 3 if '3' in (phase|string) else 1 %}
+              {% set current_threshold = power_threshold / (voltage * phases) %}
+              {% set current_value = states(state_attr('sensor.ev_load_balancer_charger','current_output')) | float(0) %}
+              {% set difference = (finalcurrent | float - current_value) | abs %}
+              {{ difference >= current_threshold }}
         then:
           - action: system_log.write
             data:
@@ -211,8 +220,12 @@ script:
               until:
                 - condition: template
                   value_template: >
-                    {{ state_attr('sensor.ev_load_balancer_charger','current_input') | int(99) == finalcurrent | int or
-                       repeat.index >= max_delays }}
+                    {% set power_threshold = state_attr('sensor.ev_load_balancer', 'power_update_threshold') | float(230) %}
+                    {% set voltage = state_attr('sensor.ev_load_balancer_charger', 'nominal_voltage') | float(230) %}
+                    {% set phases = 3 if '3' in (phase|string) else 1 %}
+                    {% set current_threshold = power_threshold / (voltage * phases) %}
+                    {% set current_diff = (state_attr('sensor.ev_load_balancer_charger','current_input') | float(99) - finalcurrent | float) | abs %}
+                    {{ current_diff < current_threshold or repeat.index >= max_delays }}
     description: Set the charger current and phase
     fields:
       phase:
@@ -229,13 +242,13 @@ script:
       current:
         selector:
           number:
-            min: 6
+            min: 0
             max: 16
-            step: 1
+            step: 0.1
         name: current
         required: true
-        default: 6
-        description: EV charging current
+        default: 6.0
+        description: EV charging current (float)
     mode: single
 
 automation:
@@ -273,12 +286,38 @@ automation:
 
           # Determine effective mode for Comfort mode
           effective_mode: >
-            {% if selected_mode == 'Comfort' %}
+            {% set selected = states('sensor.ev_load_balancer') %}
+            {% set ems_control = states('input_boolean.ev_load_balancer_ems_control') == 'on' %}
+            {% set ems_entity = state_attr('sensor.ev_load_balancer', 'ems_signal_entity') %}
+            {% set ems_signal_valid = has_value(ems_entity) if ems_entity else false %}
+            {% set ems_active = ems_control and ems_signal_valid %}
+            {% set ems_signal = is_state(ems_entity, 'on') if ems_active else false %}
+
+            {% if selected == 'Comfort' %}
               {% set comfort_soc = states('input_number.ev_load_balancer_comfort_soc') | int %}
               {% set current_soc = state_attr('sensor.ev_load_balancer_car', 'battery_percentage') | int %}
-              {{ 'Limited' if current_soc < comfort_soc else 'Solar' }}
+              {% if current_soc < comfort_soc %}
+                Limited
+              {% else %}
+                {{ 'Solar' if (not ems_active or ems_signal) else 'Off' }}
+              {% endif %}
+
+            {% elif selected in ['Solar', 'Limited'] %}
+              {% if ems_active %}
+                {{ selected if ems_signal else 'Off' }}
+              {% else %}
+                {{ selected }}
+              {% endif %}
+
+            {% elif selected in ['1-Phase Minimum', '3-Phases Minimum'] %}
+              {% if ems_active %}
+                {{ selected if ems_signal else 'Off' }}
+              {% else %}
+                {{ selected }}
+              {% endif %}
+
             {% else %}
-              {{ selected_mode }}
+              {{ selected }}
             {% endif %}
 
           # Calculate currents based on charger and car settings
@@ -423,13 +462,13 @@ automation:
             {% endif %}
 
           adjusted_current_limit: >
-            {% set current = (adjusted_available_power_final / (nominal_voltage * adjusted_phase_selection)) | int %}
-            {% if current | int < min_current %}
+            {% set current = (adjusted_available_power_final / (nominal_voltage * adjusted_phase_selection)) | round(1) %}
+            {% if current < min_current %}
               0
-            {% elif current | int > max_current %}
-              {{ max_current }}
+            {% elif current > max_current %}
+              {{ max_current | float }}
             {% else %}
-              {{ current | int }}
+              {{ current }}
             {% endif %}
 
       # Charging mode selection with logging
@@ -464,29 +503,29 @@ automation:
                 metadata: {}
                 data:
                   current: 0
-                  phase: 3
+                  phase: "{{ state_attr('sensor.ev_load_balancer_charger','default_phases') }}"
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ effective_mode in ['Fixed 1.4kW'] }}"
+                value_template: "{{ effective_mode in ['1-Phase Minimum'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
                 data:
-                  current: 6
+                  current: "{{ min_current }}"
                   phase: 1
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
               - condition: template
-                value_template: "{{ effective_mode in ['Fixed 4kW'] }}"
+                value_template: "{{ effective_mode in ['3-Phases Minimum'] }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
                 data:
-                  current: "{{ 16 if state_attr('sensor.ev_load_balancer', 'single_phase_only') else 6 }}"
-                  phase: "{{ 1 if state_attr('sensor.ev_load_balancer', 'single_phase_only') else 3 }}"
+                  current: "{{ min_current }}"
+                  phase: 3
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
           - conditions:
@@ -496,7 +535,7 @@ automation:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
                 data:
-                  current: 16
+                  current: "{{ max_current }}"
                   phase: "{{ 1 if state_attr('sensor.ev_load_balancer', 'single_phase_only') else 3 }}"
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
@@ -553,4 +592,6 @@ automation:
       - action: timer.start
         target:
           entity_id: timer.ev_load_balancer_phase_switching_timer
+        data:
+          duration: "{{ (state_attr('sensor.ev_load_balancer', 'phase_switch_delay') | int(5)) * 60 }}"
     mode: single

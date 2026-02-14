@@ -147,14 +147,16 @@ Update the following variables in the `packages/ev_loadbalancer_user_config.yaml
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|
 | `state`               | string | Parameter.        | Load balancer mode [Off, Fixed 1.4kW, Fixed 4kW, Fast, Limited, Solar, Comfort]|
-| `ems_signal_entity`   | string | Parameter.        | [Optional] Binary sensor for EMS control (on=Cheap, off=Expensive)         |
+| `ems_signal`          | W    | Attribute         | [Optional] EMS Signal (Float/Watts) defining allowed grid usage. |
 | `car_aware`           | bool | Parameter.          | Enable car aware functionality [true, false] for Limited mode              |
 | `power_limit`         | W    | Parameter           | Maximum power consumption limit including charging.                        |
 | `power_limit_extended`| W    | Parameter           | [Optional] Maximum power allowed overcharge to reach SOC                   |
 | `pv_prioritized`      | bool | Parameter           | Enable to make maximum use of solar power                                  |
 | `single_phase_only`   | bool | Parameter           | Limit to phase output to 1 phase only                                      |
 | `power_update_threshold`| W    | Parameter           | [Optional] Minimum power change (W) before updating charger. Defaults to 230W if not set. |
-| `phase_switch_delay`| min    | Parameter           | [Optional] Delay in minutes before updating charger. Defaults to 5 minutes if not set. |
+| `phase_switch_delay`  | min  | Parameter           | [Optional] Delay in minutes before updating charger. Defaults to 5 minutes if not set. |
+| `emergency_soc`       | %    | Parameter           | [Optional] SOC below which charging bypasses all Price/EMS constraints. Defaults to 20%. |
+| `max_charging_cost`   | €/kWh| Parameter           | [Optional] Maximum cost to allow grid charging. Defaults to 0.30. |
 
 ### Charger
 | Variable              | Unit | Type                | Description                                                                |
@@ -243,22 +245,21 @@ The load balancer includes a phase switching protection mechanism to prevent fre
 - This protection does not apply to manual mode changes (e.g., switching to "Fixed 1.4kW" or "Fixed 4kW")
 - The timer duration can be adjusted in the `timer.ev_load_balancer_phase_switching_timer` configuration
 
-### EMS Integration (Dynamic Pricing)
-Enable the "EV Load Balancer EMS Mode Control" toggle to let an external EMS (Energy Management System) control the charging logic based on price or grid availability.
+### EMS Integration (Generic Budgeting & Solar Turbo)
+Enable the "EV Load Balancer EMS Mode Control" toggle to let an external EMS (Energy Management System) control the charging logic.
 
-**Logic Matrix:**
-| Mode Selected | EMS Control: ON (+ Signal ON) | EMS Control: ON (+ Signal OFF) | EMS Control: OFF |
-|---------------|-------------------------------|--------------------------------|-------------------|
-| **Solar** | **Limited** (Charge Hard) | **Off** | Solar |
-| **Limited** | **Limited** (Charge Hard) | **Off** | Limited |
-| **1-Ph Min** | **1-Ph Min** (Fixed Rate) | **Off** | 1-Ph Min |
-| **3-Ph Min** | **3-Ph Min** (Fixed Rate) | **Off** | 3-Ph Min |
-| **Comfort** | Limited (if low SOC) OR Limited | Limited (if low SOC) OR Off/Solar | Comfort Logic |
-| **Off** | Off | Off | Off |
+**How it works:**
+1.  **EMS Budgeting**: The system looks at the `ems_signal` attribute (float in Watts).
+    *   If `ems_signal > 0`: The grid draw is capped at this value.
+    *   If `ems_signal <= 0`: Grid charging is disabled (unless Emergency SOC is active).
+2.  **Solar Turbo**: Any available solar surplus is added **on top** of the EMS budget.
+    *   *Example*: EMS gives 1000W budget, all Solar surplus is added to this. 
+    *   *Result*: Target Power = EMS Budget + Solar Surplus.
+3.  **Emergency Guard**: If Car SOC < Emergency SOC, the EMS limit is **ignored**, and the car charges at `extended_power_limit`.
 
 **Configuration:**
-1. Point `ems_signal_entity` to your binary sensor (e.g., `binary_sensor.electricity_is_cheap`).
-2. Toggle `input_boolean.ev_load_balancer_ems_control` to ON.
+1.  Define the `ems_signal` attribute in `ev_loadbalancer_user_config.yaml`. This should be a template returning the allowed grid power in Watts (float).
+2.  Toggle `input_boolean.ev_load_balancer_ems_control` to ON.
 
 ### Robust Sensor Validity Check and Fallback
 If any required sensor or attribute for the selected charge mode is unavailable, unknown, none, or non-numeric, the automation will:

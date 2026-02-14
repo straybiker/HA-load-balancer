@@ -88,6 +88,24 @@ input_number:
     max: 100
     step: 1
 
+  ev_load_balancer_emergency_soc:
+    name: EV Emergency SOC Floor
+    icon: mdi:battery-alert
+    initial: 20
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+
+  ev_max_charging_cost:
+    name: Max charging cost
+    icon: mdi:cash-check
+    initial: 0.30
+    min: 0.10
+    max: 0.50
+    step: 0.01
+    unit_of_measurement: "€/kWh"
+
 input_datetime:
   ## Optional input: can be removed if car aware is not used
   ev_load_balancer_charge_time_target:
@@ -254,7 +272,7 @@ script:
 automation:
   - alias: EV Charging Load Balancer
     id: load_balance_ev_charging
-    description: "Dynamic load balancing for EV charging with optional car-aware power management"
+    description: "Generic EMS Budgeting with Max Cost Guard, Solar Turbo, and Efficiency Compensation"
 
     triggers:
       - trigger: time_pattern
@@ -272,85 +290,111 @@ automation:
         value_template: "{{ state_attr('sensor.ev_load_balancer','power_limit') | int > 0 }}"
     actions:
       - variables:
-          # Get sensor states with proper attribute references
+          # --- 1. SENSOR STATES WITH ATTRIBUTES ---
           household_power: "{{ states('sensor.ev_load_balancer_house') | int }}"
-          charger_current_input: "{{ state_attr('sensor.ev_load_balancer_charger','current_input') | int }}"
-          charger_power: "{{ state_attr('sensor.ev_load_balancer_charger','active_power') | float }}"
+          charger_current_input: "{{ state_attr('sensor.ev_load_balancer_charger','current_input') | float(0) }}"
+          charger_power: "{{ state_attr('sensor.ev_load_balancer_charger','active_power') | float(0) }}"
           charger_phases_input: "{{ state_attr('sensor.ev_load_balancer_charger','phases_input') }}"
-          power_limit_extended: "{{ state_attr('sensor.ev_load_balancer','power_limit_extended') | int }}"
           power_limit_normal: "{{ state_attr('sensor.ev_load_balancer','power_limit') | int }}"
+          power_limit_extended: "{{ state_attr('sensor.ev_load_balancer','power_limit_extended') | int }}"
           nominal_voltage: "{{ state_attr('sensor.ev_load_balancer_charger','nominal_voltage') | int(230) }}"
           phase_1: "{{ state_attr('sensor.ev_load_balancer_charger', 'phase_1_state') | default('1 Phase', true) }}"
           phase_3: "{{ state_attr('sensor.ev_load_balancer_charger', 'phase_3_state') | default('3 Phases', true) }}"
           selected_mode: "{{ states('sensor.ev_load_balancer') }}"
 
-          # Determine effective mode for Comfort mode
-          effective_mode: >
-            {% set selected = states('sensor.ev_load_balancer') %}
-            {% set ems_control = states('input_boolean.ev_load_balancer_ems_control') == 'on' %}
-            {% set ems_entity = state_attr('sensor.ev_load_balancer', 'ems_signal_entity') %}
-            {% set ems_signal_valid = has_value(ems_entity) if ems_entity else false %}
-            {% set ems_active = ems_control and ems_signal_valid %}
-            {% set ems_signal = is_state(ems_entity, 'on') if ems_active else false %}
-
-            {% if selected == 'Comfort' %}
-              {% set comfort_soc = states('input_number.ev_load_balancer_comfort_soc') | int %}
-              {% set current_soc = state_attr('sensor.ev_load_balancer_car', 'battery_percentage') | int %}
-              {% if current_soc < comfort_soc %}
-                Limited
-              {% else %}
-                {{ 'Solar' if (not ems_active or ems_signal) else 'Off' }}
-              {% endif %}
-
-            {% elif selected in ['Solar', 'Limited'] %}
-              {% if ems_active %}
-                {{ selected if ems_signal else 'Off' }}
-              {% else %}
-                {{ selected }}
-              {% endif %}
-
-            {% elif selected in ['1-Phase Minimum', '3-Phases Minimum'] %}
-              {% if ems_active %}
-                {{ selected if ems_signal else 'Off' }}
-              {% else %}
-                {{ selected }}
-              {% endif %}
-
-            {% else %}
-              {{ selected }}
-            {% endif %}
-
-          # Calculate currents based on charger and car settings
-          max_current: >
-            {% set charger_max_current = state_attr('sensor.ev_load_balancer_charger', 'max_current') | int %}
-            {% set car_max_current = state_attr('sensor.ev_load_balancer_car', 'max_current') | int %}
-            {{ [car_max_current, charger_max_current] | min if state_attr('sensor.ev_load_balancer', 'car_aware') else charger_max_current }}
-
-          min_current: >
-            {% set charger_min_current = state_attr('sensor.ev_load_balancer_charger', 'min_current') %}
-            {% set car_min_current = state_attr('sensor.ev_load_balancer_car', 'min_current') %}
-            {{ [car_min_current, charger_min_current] | max if state_attr('sensor.ev_load_balancer', 'car_aware') else charger_min_current }}
-
-          # Check car sensor availability and set car_aware
+          # --- 2. CAR AWARE HARDWARE LIMITS ---
           car_aware: >
             {% set car_aware_flag = state_attr('sensor.ev_load_balancer', 'car_aware') | bool %}
-            {% if not car_aware_flag %}
-              {{ false }}
+            {% if not car_aware_flag %} false
             {% else %}
               {% set required_sensors = [
                 state_attr('sensor.ev_load_balancer_car','battery_capacity_wh'),
                 state_attr('sensor.ev_load_balancer_car','battery_percentage'),
-                state_attr('sensor.ev_load_balancer_car','soc_time'),
                 state_attr('sensor.ev_load_balancer_car','soc_threshold')
               ] %}
-              {% set invalid_sensors = required_sensors | select('in', ['unavailable', 'unknown', None, 'none', 'None', '']) | list %}
-              {% if invalid_sensors | count > 0 %}
-                {{ false }}
-              {% else %}
-                {{ true }}
-              {% endif %}
+              {{ required_sensors | select('in', ['unavailable', 'unknown', None, 'none', 'None', '']) | list | count == 0 }}
             {% endif %}
 
+          max_current: >
+            {% set charger_max = state_attr('sensor.ev_load_balancer_charger', 'max_current') | int %}
+            {% set car_max = state_attr('sensor.ev_load_balancer_car', 'max_current') | int %}
+            {{ [car_max, charger_max] | min if car_aware else charger_max }}
+
+          min_current: >
+            {% set charger_min = state_attr('sensor.ev_load_balancer_charger', 'min_current') %}
+            {% set car_min = state_attr('sensor.ev_load_balancer_car', 'min_current') %}
+            {{ [car_min, charger_min] | max if car_aware else charger_min }}
+
+          # Efficiency Compensation
+          charger_efficiency: >
+            {% set phase_count = 3 if charger_phases_input == phase_3 else 1 %}
+            {% if charger_current_input > 0 and charger_power > 1000.0 %}
+              {% set eff = charger_power / (charger_current_input * nominal_voltage * phase_count) %}
+              {{ [eff, 1.0] | min }}
+            {% else %}
+              1.0
+            {% endif %}
+
+          # --- 3. EMS & MAX COST GUARDS ---
+          current_rate: "{{ states('sensor.current_electricity_cost_dynamic_rate') | float(0) }}"
+          max_cost_rate: "{{ states('input_number.ev_max_charging_cost') | float(0.30) }}"
+          ems_active: "{{ states('input_boolean.ev_load_balancer_ems_control') == 'on' }}"
+
+          # FIXED: Proper Jinja evaluation for the signal state
+          ems_signal: "{{ state_attr('sensor.ev_load_balancer', 'ems_signal') | float(0) > 0 }}"
+
+          current_soc: "{{ state_attr('sensor.ev_load_balancer_car', 'battery_percentage') | int(100) }}"
+          emergency_soc: "{{ states('input_number.ev_load_balancer_emergency_soc') | int(20) }}"
+          target_soc: "{{ states('input_number.ev_load_balancer_soc_threshold') | int(80) }}"
+
+          # Safety Floor Overrides ALL EMS/Price rules
+          is_emergency: "{{ current_soc < emergency_soc }}"
+
+          # Grid Gate determines if we buy from Grid or ONLY scavenge Solar Surplus
+          grid_gate_open: >
+            {% if is_emergency %} true
+            {% else %}
+              {% set price_ok = current_rate <= max_cost_rate %}
+              {% set signal_ok = (not ems_active) or ems_signal %}
+              {{ price_ok and signal_ok }}
+            {% endif %}
+
+          # --- 4. INTENT: DESIRED GRID WATTAGE ---
+          # What the selected mode theoretically wants (before EMS shaving)
+          desired_grid_w: >
+            {% set p_min_1 = min_current * nominal_voltage * 1 %}
+            {% set p_min_3 = min_current * nominal_voltage * 3 %}
+            {% set p_fast = max_current * nominal_voltage * 3 %}
+
+            {% if selected_mode == 'Off' %} 0
+            {% elif is_emergency %} {{ power_limit_extended }} {# Emergency bypasses everything to get you to safety #}
+            {% elif not grid_gate_open %} 0 {# Blocked by Price/EMS #}
+            {% elif selected_mode == '1-Phase Minimum' %} {{ p_min_1 }}
+            {% elif selected_mode == '3-Phases Minimum' %} {{ p_min_3 }}
+            {% elif selected_mode == 'Fast' %} {{ p_fast }}
+            {% elif selected_mode == 'Limited' %} {{ power_limit_extended }}
+            {% elif selected_mode == 'Comfort' %} 
+               {{ power_limit_extended if current_soc < target_soc else 0 }}
+            {% elif selected_mode == 'Solar' %} 0 {# Explicitly 0 Grid for Solar #}
+            {% else %} 0
+            {% endif %}
+
+          # --- 5. CONSTRAINT: EMS PEAK SHAVING ---
+          # Apply the EMS budget to dynamic modes (Static modes bypass this shave)
+          ems_budget_w: "{{ state_attr('sensor.ev_load_balancer', 'ems_signal') | float(0) }}"
+
+          effective_grid_w: >
+            {% if is_emergency %}
+              {{ desired_grid_w }} {# Ignore EMS shaving in an emergency #}
+            {% elif selected_mode == 'Solar' %}
+              0 {# Explicitly enforce 0 Grid #}
+            {% elif ems_active and selected_mode in ['Limited', 'Comfort'] %}
+              {{ [desired_grid_w, ems_budget_w] | min }} {# Shave grid request to match EMS Budget #}
+            {% else %}
+              {{ desired_grid_w }} {# Static modes or EMS off #}
+            {% endif %}
+
+          # --- 6. CAR AWARE OPTIMIZATIONS (Time Tracking) ---
           time_until_target_time: >
             {% if car_aware %}
               {% set now = now() %}    
@@ -363,97 +407,61 @@ automation:
               {% endif %}
               {% set time_diff = (target_datetime - now).total_seconds() / 3600 %}
               {{ time_diff | round(2) | float }}
-            {% else %}
-              {{ 48 }}
+            {% else %} 48 {% endif %}
+
+          # Simulated proxy for Battery % calculation based on shaved grid + surplus
+          raw_target_power: >
+            {% set solar_surplus = [-household_power, 0] | max %}
+            {% if selected_mode == 'Off' %} 0
+            {% else %} {{ effective_grid_w + solar_surplus }}
             {% endif %}
 
-          # Calculate efficiency using sensor states with proper variable references
-          charger_efficiency: >
-            {% set phase_count = 3 if charger_phases_input == phase_3 else 1 %}
-            {% if charger_current_input > 0 and charger_power > 1000.0 %}
-            {{ charger_power / (charger_current_input * nominal_voltage * phase_count) }}
-            {% else %}
-              {{ 1.0 }}
-            {% endif %}
+          proxy_phase: "{{ 3 if raw_target_power >= (min_current * nominal_voltage * 3) else 1 }}"
+          proxy_current: >
+            {% set current = (raw_target_power / (nominal_voltage * proxy_phase)) | int %}
+            {% if current < min_current %} 0
+            {% elif current > max_current %} {{ max_current }}
+            {% else %} {{ current }} {% endif %}
 
-          # Power calculations
-          available_power: >
-            {% if effective_mode == 'Solar' %}
-              {% if household_power > 0 %}
-                {{ 0 | int }}
-              {% else %}
-                {% set power_left = (-household_power + nominal_voltage) / charger_efficiency %}
-                {{ power_left if power_left > 0 else 0 }}
-              {% endif %}
-            {% elif effective_mode == 'Limited' %}
-              {% set min_power_threshold = -(nominal_voltage * min_current) | float %}
-              {% if state_attr('sensor.ev_load_balancer', 'pv_prioritized') and household_power < min_power_threshold %}
-                {% set pv_power = state_attr('sensor.ev_load_balancer_house', 'pv_power') | float %}
-                {{ (pv_power / charger_efficiency) | int if pv_power > 0 else 0 }}
-              {% else %}
-                {% set power_left = (power_limit_normal - household_power) / charger_efficiency %}
-                {{ power_left if power_left > 0 else 0 }}
-              {% endif %}
-            {% else %}
-              {{ 0 | int}}
-            {% endif %}
-
-          phase_selection: "{{ 3 if available_power >= (nominal_voltage * min_current * 3) else 1 }}"
-
-          current_limit: >
-            {% set current = (available_power / (nominal_voltage * phase_selection)) | int %}
-            {% if current < min_current %}
-              0
-            {% elif current > max_current %}
-              {{ max_current }}
-            {% else %}
-              {{ current }}
-            {% endif %}
-
-          # Battery state estimation only if car aware is enabled
           estimated_battery_percentage: |
             {% if car_aware %}
-              {% set charging_power = (current_limit * nominal_voltage * phase_selection) | float %}
+              {% set charging_power = (proxy_current * nominal_voltage * proxy_phase) | float %}
               {% set added_energy = (charging_power * time_until_target_time | float) %}
               {% set battery_capacity = state_attr('sensor.ev_load_balancer_car','battery_capacity_wh') %}
-              {{ (((battery_capacity * state_attr('sensor.ev_load_balancer_car','battery_percentage') / 100) + added_energy) / battery_capacity) * 100 }}
-            {% else %}
-              {{ 100.0 }}
-            {% endif %}
+              {{ (((battery_capacity * current_soc / 100) + added_energy) / battery_capacity) * 100 }}
+            {% else %} 100.0 {% endif %}
 
-          # Final power adjustments considering car awareness
+          # Physical Headroom selection based on estimated trajectory
           power_limit: |
-            {% if car_aware and estimated_battery_percentage | int < state_attr('sensor.ev_load_balancer_car','soc_threshold') %}
+            {% if car_aware and estimated_battery_percentage | int < target_soc %}
               {{ power_limit_extended }}
             {% else %}
               {{ power_limit_normal }}
             {% endif %}
 
+          # --- 7. PHYSICAL CONSTRAINT: FUSE LIMIT WITH EFFICIENCY ---
           adjusted_available_power_final: |
-            {% set min_power_threshold = -(nominal_voltage * min_current) | float %}
-            {% set power_left = 0 | int %}
+            {% set grid_headroom = (power_limit - household_power) | float %}
+            {% set max_hardware = max_current * nominal_voltage * 3 %}
 
-            {% if effective_mode == 'Solar' %}
-              {% if household_power < 0 %}
-                {% if car_aware and estimated_battery_percentage | int < state_attr('sensor.ev_load_balancer_car','soc_threshold') %}
-                  {% set power_left = (-household_power + (nominal_voltage * 1)) %}
-                {% else %}
-                  {% set power_left = -household_power %}
-                {% endif %}
-              {% endif %}
-            {% elif effective_mode == 'Limited' %}
-              {% if state_attr('sensor.ev_load_balancer', 'pv_prioritized') and household_power < min_power_threshold %}
-                {% set power_left = (state_attr('sensor.ev_load_balancer_house', 'pv_power') | float) | int %}
-              {% else %}
-                {% set power_left = (power_limit - household_power) | float %}
-              {% endif %}
-            {% endif %}
+            {# Adjust physical targets up to compensate for charger hardware losses #}
+            {% set raw_target_eff = raw_target_power / charger_efficiency %}
+            {% set headroom_adjusted = (grid_headroom / charger_efficiency) if grid_headroom > 0 else 0 %}
 
-            {{ (power_left / charger_efficiency) if power_left > 0 else 0 }}
+            {{ [raw_target_eff, headroom_adjusted, max_hardware] | min }}
 
+          # --- 8. HARDWARE SELECTION (Phase & Amps) ---
           adjusted_phase_selection: >
             {% set force_single = state_attr('sensor.ev_load_balancer', 'single_phase_only') | bool %}
-            {% set desired_phase = 1 if force_single else (3 if adjusted_available_power_final >= (nominal_voltage * min_current * 3) else 1) %}
+            {% set p_min_3 = min_current * nominal_voltage * 3 %}
+
+            {% if selected_mode == '1-Phase Minimum' %} {% set desired_phase = 1 %}
+            {% elif selected_mode == '3-Phases Minimum' %} {% set desired_phase = 3 %}
+            {% elif force_single %} {% set desired_phase = 1 %}
+            {% elif adjusted_available_power_final >= (p_min_3 * 0.95) %} {% set desired_phase = 3 %}
+            {% else %} {% set desired_phase = 1 %}
+            {% endif %}
+
             {% set current_phase = 3 if states(state_attr('sensor.ev_load_balancer_charger','phases_output')) == phase_3 else 1 %}
             {% if desired_phase > current_phase and states('timer.ev_load_balancer_phase_switching_timer') == 'active' %}
               {{ current_phase }}
@@ -463,15 +471,12 @@ automation:
 
           adjusted_current_limit: >
             {% set current = (adjusted_available_power_final / (nominal_voltage * adjusted_phase_selection)) | round(1) %}
-            {% if current < min_current %}
-              0
-            {% elif current > max_current %}
-              {{ max_current | float }}
-            {% else %}
-              {{ current }}
+            {% if current < min_current %} 0
+            {% elif current > max_current %} {{ max_current | float }}
+            {% else %} {{ current }}
             {% endif %}
 
-      # Charging mode selection with logging
+      # --- 9. EXECUTION LOGIC ---
       - choose:
           - conditions:
               - condition: template
@@ -495,9 +500,11 @@ automation:
                   phase: "{{ state_attr('sensor.ev_load_balancer_charger','default_phases') }}"
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
+
           - conditions:
+              # Catch Off modes and scenarios where Profit/EMS blocked grid AND there is zero sun
               - condition: template
-                value_template: "{{ effective_mode in ['Off'] }}"
+                value_template: "{{ selected_mode in ['Off'] or adjusted_current_limit == 0 }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
@@ -506,42 +513,11 @@ automation:
                   phase: "{{ state_attr('sensor.ev_load_balancer_charger','default_phases') }}"
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
+
           - conditions:
+              # Active execution for ALL other modes (Fast, Solar, Limited, etc.)
               - condition: template
-                value_template: "{{ effective_mode in ['1-Phase Minimum'] }}"
-            sequence:
-              - action: script.ev_load_balancer_set_charger_params
-                metadata: {}
-                data:
-                  current: "{{ min_current }}"
-                  phase: 1
-                target:
-                  entity_id: script.ev_load_balancer_set_charger_params
-          - conditions:
-              - condition: template
-                value_template: "{{ effective_mode in ['3-Phases Minimum'] }}"
-            sequence:
-              - action: script.ev_load_balancer_set_charger_params
-                metadata: {}
-                data:
-                  current: "{{ min_current }}"
-                  phase: 3
-                target:
-                  entity_id: script.ev_load_balancer_set_charger_params
-          - conditions:
-              - condition: template
-                value_template: "{{ effective_mode in ['Fast'] }}"
-            sequence:
-              - action: script.ev_load_balancer_set_charger_params
-                metadata: {}
-                data:
-                  current: "{{ max_current }}"
-                  phase: "{{ 1 if state_attr('sensor.ev_load_balancer', 'single_phase_only') else 3 }}"
-                target:
-                  entity_id: script.ev_load_balancer_set_charger_params
-          - conditions:
-              - condition: template
-                value_template: "{{ effective_mode in ['Limited', 'Solar', 'Comfort'] }}"
+                value_template: "{{ true }}"
             sequence:
               - action: script.ev_load_balancer_set_charger_params
                 metadata: {}
@@ -574,7 +550,7 @@ automation:
 
   - alias: Phase Switching Timer Control
     id: ev_load_balancer_phase_switching_timer_control
-    description: Start timer when switching from 3 phase to 1 phase in Limited or Solar mode
+    description: Start timer when switching from 3 phase to 1 phase in dynamic modes
     triggers:
       - trigger: state
         entity_id: sensor.ev_load_balancer_internal_phase_monitor
@@ -587,7 +563,7 @@ automation:
             (trigger.from_state is not defined or trigger.from_state is none or trigger.from_state.state != phase_1) }}
       - condition: template
         value_template: >
-          {{ states('sensor.ev_load_balancer') in ['Limited', 'Solar'] }}
+          {{ states('sensor.ev_load_balancer') in ['Limited', 'Solar', 'Comfort'] }}
     actions:
       - action: timer.start
         target:

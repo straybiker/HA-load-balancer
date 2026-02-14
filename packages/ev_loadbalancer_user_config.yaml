@@ -67,7 +67,7 @@ template:
       - unique_id: ev_load_balancer
         name: "EV Load Balancer"
         state: "{{ states('input_select.ev_load_balancer_charge_mode') }}"
-        # Power settings
+        # Power settingss
         attributes:
           power_limit: "{{ states('input_number.ev_load_balancer_power_limit') | int }}"
           power_limit_extended: "{{ states('input_number.ev_load_balancer_extended_power_limit') | int }}"
@@ -79,4 +79,4 @@ template:
           # Phase switching delay in minutes (default: 5)
           phase_switch_delay: "{{ 5 | int }}"
           # Binary sensor entity from EMS (on = Cheap/Charge, off = Expensive/Wait)
-          ems_signal_entity: "binary_sensor.my_ems_charge_signal"
+          ems_signal: "{{ states('sensor.p_deferrable9') | float(0) }}"

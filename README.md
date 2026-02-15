@@ -245,21 +245,34 @@ The load balancer includes a phase switching protection mechanism to prevent fre
 - This protection does not apply to manual mode changes (e.g., switching to "Fixed 1.4kW" or "Fixed 4kW")
 - The timer duration can be adjusted in the `timer.ev_load_balancer_phase_switching_timer` configuration
 
-### EMS Integration (Generic Budgeting & Solar Turbo)
-Enable the "EV Load Balancer EMS Mode Control" toggle to let an external EMS (Energy Management System) control the charging logic.
+### Charging Logic & EMS Integration
 
-**How it works:**
-1.  **EMS Budgeting**: The system looks at the `ems_signal` attribute (float in Watts).
-    *   If `ems_signal > 0`: The grid draw is capped at this value.
-    *   If `ems_signal <= 0`: Grid charging is disabled (unless Emergency SOC is active).
-2.  **Solar Turbo**: Any available solar surplus is added **on top** of the EMS budget.
-    *   *Example*: EMS gives 1000W budget, all Solar surplus is added to this. 
-    *   *Result*: Target Power = EMS Budget + Solar Surplus.
-3.  **Emergency Guard**: If Car SOC < Emergency SOC, the EMS limit is **ignored**, and the car charges at `extended_power_limit`.
+The load balancer logic dictates how the car charges based on the selected mode, solar availability, and optional EMS signals.
 
-**Configuration:**
-1.  Define the `ems_signal` attribute in `ev_loadbalancer_user_config.yaml`. This should be a template returning the allowed grid power in Watts (float).
-2.  Toggle `input_boolean.ev_load_balancer_ems_control` to ON.
+#### Behavior Matrix
+
+| Mode | PV Prio | EMS Control | EMS Signal | Resulting Behavior |
+| :--- | :--- | :--- | :--- | :--- |
+| **Solar** | *Any* | *Any* | *Any* | **Solar Only**: Charges strictly on solar surplus. Grid is never used. |
+| **Fast** | *Any* | OFF | - | **Max Power**: Charges at maximum capacity (e.g. 11kW). |
+| | | ON | ON (>0W) | **Max Power**: EMS Budget is ignored (treated as binary "Go"). |
+| | | ON | OFF (0W)| **Solar Only**: Grid blocked by EMS. Charges only if solar surplus exists. |
+| **Limited**| OFF | OFF | - | **Max Grid**: Charges up to `power_limit` + Solar Surplus. |
+| | | ON | ON (>0W) | **Optimized Grid**: <br>• **Budget Mode**: Grid limit = `ems_signal`.<br>• **On/Off Mode**: Grid limit = `power_limit`.<br>Solar surplus is added on *top* of this limit (Turbo). |
+| | | ON | OFF (0W)| **Solar Only**: Grid blocked. Charges only on solar surplus. |
+| **Limited**| ON | *Any* | *Any* | **Solar Priority**:<br>• **Sun > 0**: Follows **Solar Only** behavior (ignores Grid/EMS).<br>• **No Sun**: Follows standard **Limited** behavior (see above). |
+| **Comfort**| *Any* | *Any* | *Any* | **Hybrid**:<br>• **SOC < Min**: Behaves like **Limited** (Ensures charge).<br>• **SOC > Min**: Behaves like **Solar** (Saves money). |
+
+#### EMS Configuration
+1.  **EMS Signal**: Define `ems_signal` attribute in `ev_loadbalancer_user_config.yaml`.
+    *   *Float (Watts)*: Represents the budget (e.g., 2500W).
+2.  **Control Toggle**: Turn `input_boolean.ev_load_balancer_ems_control` **ON**.
+3.  **Mode Toggle** (Optional): `ev_load_balancer_ems_as_onoff`
+    *   **OFF (Default)**: Budget Mode. Grid Limit = `ems_signal`.
+    *   **ON**: Binary Mode. `ems_signal > 0` = Full Power, `0` = No Power.
+
+#### Emergency Guard
+If `battery_percentage` < `emergency_soc` (Default 20%), **ALL** constraints (EMS, Price, Solar) are ignored. The car will charge at `power_limit`.
 
 ### Robust Sensor Validity Check and Fallback
 If any required sensor or attribute for the selected charge mode is unavailable, unknown, none, or non-numeric, the automation will:

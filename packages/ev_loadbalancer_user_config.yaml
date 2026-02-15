@@ -58,7 +58,7 @@ template:
         attributes:
           max_current: "{{ 16 | int }}"
           min_current: "{{ 6 | int }}"
-          battery_capacity_wh: "{{ 80000 | int }}"
+          battery_capacity_wh: "{{ 74000 | int }}"
           battery_percentage: "{{states('sensor.ix3_m_sport_battery_hv_state_of_charge') | int}}"
           soc_time: "{{ states('input_datetime.ev_load_balancer_charge_time_target') }}"
           soc_threshold: "{{ states('input_number.ev_load_balancer_soc_threshold') | int(0)}}"
@@ -67,10 +67,9 @@ template:
       - unique_id: ev_load_balancer
         name: "EV Load Balancer"
         state: "{{ states('input_select.ev_load_balancer_charge_mode') }}"
-        # Power settingss
+        # Power settings
         attributes:
           power_limit: "{{ states('input_number.ev_load_balancer_power_limit') | int }}"
-          power_limit_extended: "{{ states('input_number.ev_load_balancer_extended_power_limit') | int }}"
           car_aware: "{{ states('input_boolean.ev_load_balancer_car_aware') | bool }}"
           pv_prioritized: "{{ states('input_boolean.ev_load_balancer_pv_prioritized') | bool }}"
           single_phase_only: "{{ states('input_boolean.ev_load_balancer_single_phase_only') | bool }}"
@@ -79,4 +78,5 @@ template:
           # Phase switching delay in minutes (default: 5)
           phase_switch_delay: "{{ 5 | int }}"
           # Binary sensor entity from EMS (on = Cheap/Charge, off = Expensive/Wait)
-          ems_signal: "{{ states('sensor.p_deferrable9') | float(0) }}"
+          ems_signal: "{{ states('sensor.p_deferrable8') | float(0) }}"
+          ems_as_onoff: "{{ states('input_boolean.ev_load_balancer_ems_as_onoff') | bool }}"

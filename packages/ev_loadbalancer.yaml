@@ -68,7 +68,6 @@ input_number:
     icon: mdi:battery-charging-80
     mode: slider
     unit_of_measurement: "%"
-    initial: 80
     min: 0
     max: 100
     step: 1
@@ -79,7 +78,6 @@ input_number:
     icon: mdi:battery-charging-50
     mode: slider
     unit_of_measurement: "%"
-    initial: 50
     min: 0
     max: 100
     step: 1
@@ -89,7 +87,6 @@ input_number:
     icon: mdi:battery-alert
     unit_of_measurement: "%"
     mode: slider
-    initial: 20
     min: 0
     max: 100
     step: 1
@@ -97,7 +94,6 @@ input_number:
   ev_max_charging_cost:
     name: Max charging cost
     icon: mdi:cash-check
-    initial: 0.30
     min: 0.10
     max: 0.50
     step: 0.01
@@ -213,8 +209,10 @@ script:
               {% set phases = 3 if '3' in (phase|string) else 1 %}
               {% set current_threshold = power_threshold / (voltage * phases) %}
               {% set current_value = states(state_attr('sensor.ev_load_balancer_charger','current_output')) | float(0) %}
-              {% set difference = (finalcurrent | float - current_value) | abs %}
-              {{ difference >= current_threshold }}
+              {% set target_current = finalcurrent | float %}
+
+              {# IF target is lower, ALWAYS reduce immediately. IF higher, require threshold. #}
+              {{ (target_current < current_value) or ((target_current - current_value) >= current_threshold) }}
         then:
           - action: system_log.write
             data:

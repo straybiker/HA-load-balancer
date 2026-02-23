@@ -42,7 +42,7 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
 - **Household power consumption sensor** excluding charger power consumption.
 - For the Alfen Eve Pro
   - Active Load Balancing enabled
-  - Install the Home Assistant HACS Alfen WallboxModbus integration: [Alfen Modbus Integration](https://github.com/straybiker/alfen_modbus).
+  - Install my fork of the Home Assistant HACS Alfen WallboxModbus integration: [Alfen Modbus Integration](https://github.com/straybiker/alfen_modbus). The original Alfen Modbus Integration has some stability issues and appears to be no longer maintained.
 
 >[!WARNING]
 >CRITICAL WARNING: Flash Memory Wear on Alfen Eve
@@ -58,6 +58,12 @@ This is not a fully-fledged Home Assistant integration (yet), but a [package](ht
 ## Installation
 ### Step 1: Package Installation
 Follow the [Home Assistant package documentation](https://www.home-assistant.io/docs/configuration/packages/) for installation details. The package files are located in the `packages` folder. You need to copy both `ev_loadbalancer.yaml` and `ev_loadbalancer_user_config.yaml`.
+If you copy both yaml files to the root of the `packages` folder, you can simply activate the package by adding the following code to `configuration.yaml`.
+
+```
+homeassistant:
+  packages: !include_dir_named packages/
+```
 
 ### Step 2: Configuration
 Update `packages/ev_loadbalancer_user_config.yaml` to your specific setup and check the configuration from the developer YAML section.

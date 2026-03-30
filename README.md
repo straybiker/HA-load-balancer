@@ -47,8 +47,8 @@ graph TD
 
     Sensors -->|Provides Data| LB
 
-    LB -->|Calculates Optimal<br>Phase & Current| Modbus[Alfen Modbus Integration]
-    Modbus -->|Registers| Charger[EV Charger]
+    LB -->|Calculates Optimal<br>Phase & Current| Integration[Charger Integration]
+    Integration -->|Communication| Charger[EV Charger]
     Charger --> EV
 ```
 

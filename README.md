@@ -415,7 +415,7 @@ The load balancer prevents rapid switching between 1 and 3 phases in dynamic mod
 - This protection does not apply to manual mode changes (e.g. switching to "1-Phase Minimum" or "3-Phases Minimum").
 
 ### Sensor Lag Grace Period (1 to 3 Phase Switching)
-When the charger upgrades from 1-phase to 3-phase charging, the sudden power jump can take a moment to register uniformly across the household and charger power sensors. To prevent the load balancer from reacting to this temporary data miscalculation and inappropriately throttling power, a 20-second grace period timer (`timer.ev_load_balancer_sensor_grace_period`) is automatically triggered upon the phase change. During this brief window, balancing automations are paused to allow all sensors to catch up to a steady state.
+When the charger upgrades from 1-phase to 3-phase charging, the sudden power jump can take a moment to register uniformly across the household and charger power sensors. To prevent the load balancer from reacting to this temporary data miscalculation and inappropriately throttling power, a 40-second grace period timer (`timer.ev_load_balancer_sensor_grace_period`) is automatically triggered upon the phase change. During this brief window, balancing automations are paused to allow all sensors to catch up to a steady state.
 
 ### Robust Sensor Validity Check and Fallback
 If any required sensor or attribute for the selected charge mode is unavailable, unknown, none, or non-numeric, the automation will:

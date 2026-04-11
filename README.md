@@ -254,6 +254,7 @@ These attributes are wired to `input_*` helpers that the package defines. They a
 | `power_limit` | `input_number.ev_load_balancer_power_limit` | W | Maximum total power (household + charging) allowed. |
 | `car_aware` | `input_boolean.ev_load_balancer_car_aware` | bool | Enable car-aware mode. When enabled, the car's SOC and current limits are respected. |
 | `pv_prioritized` | `input_boolean.ev_load_balancer_pv_prioritized` | bool | Solar-first priority for **Limited** mode. |
+| `pv_prio_threshold` | `input_number.ev_load_balancer_pv_prio_threshold` | W | Threshold for solar-first priority. The amount of power the can be added with grid power to fill the gap between 0W and the minimum required power to charge. This prevents going 1000W or more solar going to waste. |
 | `single_phase_only` | `input_boolean.ev_load_balancer_single_phase_only` | bool | Force all modes to single-phase. |
 | `ems_control` | `input_boolean.ev_load_balancer_ems_control` | bool | Master switch to activate EMS gating. |
 | `ems_as_onoff` | `input_boolean.ev_load_balancer_ems_as_onoff` | bool | `false` = Budget mode; `true` = Binary on/off mode. |
@@ -412,6 +413,9 @@ The load balancer prevents rapid switching between 1 and 3 phases in dynamic mod
 - When switching from 3 phases to 1 phase, a timer is started (duration set by `phase_switch_delay`, default 5 minutes).
 - During this period the charger will not switch back to 3 phases even if more power becomes available; current utilization on 1 phase is maximized instead.
 - This protection does not apply to manual mode changes (e.g. switching to "1-Phase Minimum" or "3-Phases Minimum").
+
+### Sensor Lag Grace Period (1 to 3 Phase Switching)
+When the charger upgrades from 1-phase to 3-phase charging, the sudden power jump can take a moment to register uniformly across the household and charger power sensors. To prevent the load balancer from reacting to this temporary data miscalculation and inappropriately throttling power, a 20-second grace period timer (`timer.ev_load_balancer_sensor_grace_period`) is automatically triggered upon the phase change. During this brief window, balancing automations are paused to allow all sensors to catch up to a steady state.
 
 ### Robust Sensor Validity Check and Fallback
 If any required sensor or attribute for the selected charge mode is unavailable, unknown, none, or non-numeric, the automation will:

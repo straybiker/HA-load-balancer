@@ -158,6 +158,26 @@ Update the following variables in the `packages/ev_loadbalancer_user_config.yaml
 | `emergency_soc`       | %    | Parameter           | [Optional] SOC below which charging bypasses all Price/EMS constraints. Defaults to 20%. |
 | `max_charging_cost`   | €/kWh| Parameter           | [Optional] Maximum cost to allow grid charging. Defaults to 0.30. |
 
+
+```
+
+type: entities
+entities:
+  - entity: input_datetime.ev_load_balancer_charge_time_target
+  - entity: input_number.ev_load_balancer_target_soc
+  - entity: input_number.ev_load_balancer_comfort_soc
+  - entity: input_number.ev_load_balancer_emergency_soc
+  - entity: input_select.ev_load_balancer_charge_mode
+  - entity: input_number.ev_load_balancer_power_limit
+  - entity: input_boolean.ev_load_balancer_car_aware
+  - entity: input_boolean.ev_load_balancer_pv_prioritized
+  - entity: input_boolean.ev_load_balancer_single_phase_only
+  - entity: input_boolean.ev_load_balancer_ems_control
+  - entity: input_boolean.ev_load_balancer_ems_as_onoff
+  - entity: input_number.ev_max_charging_cost
+  
+```
+
 ### Charger
 | Variable              | Unit | Type                | Description                                                                |
 |-----------------------|------|---------------------|----------------------------------------------------------------------------|

@@ -28,21 +28,21 @@ template:
         icon: mdi:ev-station
         attributes:
           # note the definition of the output variables
-          active_power: "{{ states('sensor.alfen_eve_real_power_sum') }}"
-          current_input: "{{ states('sensor.alfen_eve_actual_applied_max_current') }}"
-          current_output: number.alfen_eve_max_current_limit_s1
-          phases_input: "{{ states('sensor.alfen_eve_charging_mode') }}"
-          phases_output: select.alfen_eve_usable_phases1
+          active_power: "{{ states('sensor.alfen_eve_lan_real_power_sum') }}"
+          current_input: "{{ states('sensor.alfen_eve_lan_actual_applied_max_current') }}"
+          current_output: number.alfen_eve_lan_max_current_limit_s1
+          phases_input: "{{ states('sensor.alfen_eve_lan_charging_mode') }}"
+          phases_output: select.alfen_eve_lan_usable_phases1
           # max_phases: "{{ 3 | int }}" for future development
           default_phases: "{{ 1 | int }}"
-          max_current: "{{ states('sensor.alfen_eve_actual_max_current') | int }}"
+          max_current: "{{ states('sensor.alfen_eve_lan_actual_max_current') | int }}"
           min_current: "{{ 6 | int }}"
           default_current: "{{ 7 | int }}"
           nominal_voltage: "{{ 230 | int }}"
           phase_1_state: "1 Phase"
           phase_3_state: "3 Phases"
           connection_state: >
-            {% set m3 = states('sensor.alfen_eve_mode_3_state') %}
+            {% set m3 = states('sensor.alfen_eve_lan_mode_3_state') %}
             {% if m3 in ['A', 'E'] %} Disconnected
             {% elif m3 in ['B1', 'B2', 'C1', 'D1', 'C2', 'D2'] %} Connected
             {% elif m3 in ['F'] %} Error
@@ -60,8 +60,6 @@ template:
           min_current: "{{ 6 | int }}"
           battery_capacity_wh: "{{ 83000 | int }}"
           battery_percentage: "{{states('sensor.audi_a6_avant_e_tron_primary_engine_percent') | int(100)}}"
-          soc_time: "{{ states('input_datetime.ev_load_balancer_charge_time_target') }}"
-          soc_threshold: "{{ states('input_number.ev_load_balancer_soc_threshold') | int(0)}}"
 
       # Load balancer settings
       - unique_id: ev_load_balancer
@@ -73,10 +71,13 @@ template:
           car_aware: "{{ states('input_boolean.ev_load_balancer_car_aware') | bool }}"
           pv_prioritized: "{{ states('input_boolean.ev_load_balancer_pv_prioritized') | bool }}"
           single_phase_only: "{{ states('input_boolean.ev_load_balancer_single_phase_only') | bool }}"
-          # Optional: minimum power change (W) before updating charger. Defaults to 230W if not set.
           power_update_threshold: "{{ 230 | float }}"
-          # Phase switching delay in minutes (default: 5)
           phase_switch_delay: "{{ 5 | int }}"
-          # Binary sensor entity from EMS (on = Cheap/Charge, off = Expensive/Wait)
           ems_signal: "{{ states('sensor.p_deferrable8') | float(0) }}"
           ems_as_onoff: "{{ states('input_boolean.ev_load_balancer_ems_as_onoff') | bool }}"
+          electricity_price: "{{ states('sensor.current_electricity_cost_dynamic_rate') | float(0) }}"
+          ems_control: "{{ states('input_boolean.ev_load_balancer_ems_control') == 'on' }}"
+          max_cost_rate: "{{ states('input_number.ev_max_charging_cost') | float(0.30) }}"
+          emergency_soc: "{{ states('input_number.ev_load_balancer_emergency_soc') | int(20) }}"
+          comfort_soc: "{{ states('input_number.ev_load_balancer_comfort_soc') | int(50) }}"
+          target_soc: "{{ states('input_number.ev_load_balancer_target_soc') | int(80) }}"

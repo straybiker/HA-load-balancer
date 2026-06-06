@@ -308,6 +308,6 @@ views:
         hours_to_show: 4
         entities:
           - sensor.ev_load_balancer_house
-          - sensor.sma_power_w
-          - sensor.alfen_eve_real_power_sum
-          - sensor.alfen_eve_actual_applied_max_current
+          - sensor.ev_load_balancer_pv_power
+          - sensor.ev_load_balancer_charger_active_power
+          - sensor.ev_load_balancer_charger_applied_current

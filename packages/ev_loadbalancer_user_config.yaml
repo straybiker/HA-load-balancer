@@ -19,7 +19,7 @@ template:
         device_class: power
         unit_of_measurement: "W"
         attributes:
-          pv_power: "{{ states('sensor.sb3_0_1av_41_809_pv_power') }}"
+          pv_power: "{{ states('sensor.sma_power_w') }}"
 
       # Charger settings
       - unique_id: ev_load_balancer_charger
@@ -28,21 +28,21 @@ template:
         icon: mdi:ev-station
         attributes:
           # note the definition of the output variables
-          active_power: "{{ states('sensor.alfen_eve_lan_real_power_sum') }}"
-          current_input: "{{ states('sensor.alfen_eve_lan_actual_applied_max_current') }}"
-          current_output: number.alfen_eve_lan_max_current_limit_s1
-          phases_input: "{{ states('sensor.alfen_eve_lan_charging_mode') }}"
-          phases_output: select.alfen_eve_lan_usable_phases1
+          active_power: "{{ states('sensor.alfen_eve_real_power_sum') }}"
+          current_input: "{{ states('sensor.alfen_eve_actual_applied_max_current') }}"
+          current_output: number.alfen_eve_max_current_limit_s1
+          phases_input: "{{ states('sensor.alfen_eve_charging_mode') }}"
+          phases_output: select.alfen_eve_usable_phases1
           # max_phases: "{{ 3 | int }}" for future development
           default_phases: "{{ 1 | int }}"
-          max_current: "{{ states('sensor.alfen_eve_lan_actual_max_current') | int }}"
+          max_current: "{{ states('sensor.alfen_eve_actual_max_current') | int }}"
           min_current: "{{ 6 | int }}"
           default_current: "{{ 7 | int }}"
           nominal_voltage: "{{ 230 | int }}"
           phase_1_state: "1 Phase"
           phase_3_state: "3 Phases"
           connection_state: >
-            {% set m3 = states('sensor.alfen_eve_lan_mode_3_state') %}
+            {% set m3 = states('sensor.alfen_eve_mode_3_state') %}
             {% if m3 in ['A', 'E'] %} Disconnected
             {% elif m3 in ['B1', 'B2', 'C1', 'D1', 'C2', 'D2'] %} Connected
             {% elif m3 in ['F'] %} Error
@@ -52,14 +52,14 @@ template:
       # Cars settings
       - unique_id: ev_load_balancer_car
         name: "EV Load Balancer Car"
-        state: "Audi A6 etron"
+        state: "BMW iX3"
         icon: mdi:car-electric
         # Required parameters
         attributes:
           max_current: "{{ 16 | int }}"
           min_current: "{{ 6 | int }}"
-          battery_capacity_wh: "{{ 83000 | int }}"
-          battery_percentage: "{{states('sensor.audi_a6_avant_e_tron_primary_engine_percent') | int(100)}}"
+          battery_capacity_wh: "{{ 74000 | int }}"
+          battery_percentage: "{{states('sensor.ix3_m_sport_battery_ev_predicted_state_of_charge') | int}}"
 
       # Load balancer settings
       - unique_id: ev_load_balancer

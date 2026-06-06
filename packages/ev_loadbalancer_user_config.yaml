@@ -70,6 +70,7 @@ template:
           power_limit: "{{ states('input_number.ev_load_balancer_power_limit') | int }}"
           car_aware: "{{ states('input_boolean.ev_load_balancer_car_aware') | bool }}"
           pv_prioritized: "{{ states('input_boolean.ev_load_balancer_pv_prioritized') | bool }}"
+          pv_prio_threshold: "{{ states('input_number.ev_load_balancer_pv_prio_threshold') | float(0) }}"
           single_phase_only: "{{ states('input_boolean.ev_load_balancer_single_phase_only') | bool }}"
           power_update_threshold: "{{ 230 | float }}"
           phase_switch_delay: "{{ 5 | int }}"

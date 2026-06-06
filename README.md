@@ -10,6 +10,7 @@ A car charging load balancer for Home Assistant tailored to Belgian energy regul
 - [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
+- [Dashboard](#dashboard)
 - [Details](#details)
 - [Configuration and Helpers](#configuration-and-helpers)
 - [Future Developments](#future-developments)
@@ -107,6 +108,29 @@ Restart Home Assistant
 
 ### Step 5: Set parameters
 Set the helpers that are now available in the UI to the desired values.
+
+## Dashboard
+
+An optional Lovelace YAML dashboard is included at `dashboards/ev_loadbalancer_logic_dashboard.yaml`.
+It combines a compact user manual with live sensor values and recalculates the same decision path as the automation:
+target power, solar surplus, grid headroom, phase choice, current limit, EMS/price guards, SOC guards, timers, and sensor health.
+
+This is useful when the charger does not behave as expected, for example when it appears to stay around 4 kW. The dashboard shows whether the limit comes from 3-phase minimum current, solar-only mode, PV priority, single-phase-only mode, EMS/price blocking, phase switching delay, or hardware/current limits.
+
+To show it in the Home Assistant sidebar, copy the `dashboards` folder into your Home Assistant configuration directory and add this to `configuration.yaml`:
+
+```yaml
+lovelace:
+  dashboards:
+    ev-loadbalancer-logic:
+      mode: yaml
+      title: EV Load Balancer Logic
+      icon: mdi:ev-station
+      show_in_sidebar: true
+      filename: dashboards/ev_loadbalancer_logic_dashboard.yaml
+```
+
+Restart Home Assistant or reload Lovelace dashboards after adding the configuration.
 
 ## Details
 This load balancer checks every 10 seconds the current household power consumption and sets the charger output parameters, phase and current, according to the remaining available power. The total allowed power to use (capaciteitspiek), household + EV charger, is defined in an input helper parameter.

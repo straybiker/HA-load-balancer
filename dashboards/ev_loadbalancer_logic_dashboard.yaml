@@ -47,7 +47,7 @@ views:
           {% set target_reached = car_aware and current_soc >= target_soc %}
           {% set price_ok = current_rate <= max_cost_rate %}
           {% set signal_ok = (not ems_active) or ems_signal %}
-          {% set grid_gate_open = true if is_emergency else price_ok and signal_ok %}
+          {% set grid_gate_open = true if is_emergency else (price_ok and signal_ok) %}
           {% if selected_mode == 'Off' %}
             {% set desired_grid_w = 0 %}
           {% elif is_emergency %}
@@ -66,6 +66,8 @@ views:
             {% set desired_grid_w = grid_power_limit %}
           {% elif selected_mode == 'Comfort' %}
             {% set desired_grid_w = grid_power_limit if current_soc < comfort_soc else 0 %}
+          {% elif selected_mode == 'Solfar' %}
+            {% set desired_grid_w = 0 %}
           {% else %}
             {% set desired_grid_w = 0 %}
           {% endif %}
@@ -73,7 +75,7 @@ views:
             {% set effective_grid_w = desired_grid_w %}
           {% elif selected_mode == 'Solar' %}
             {% set effective_grid_w = 0 %}
-          {% elif ems_active and ems_as_onoff == false %}
+          {% elif ems_active and not ems_as_onoff %}
             {% set effective_grid_w = [desired_grid_w, ems_signal_power] | min %}
           {% else %}
             {% set effective_grid_w = desired_grid_w %}
@@ -99,7 +101,8 @@ views:
           {% endif %}
           {% set grid_headroom = grid_power_limit - household_power %}
           {% set max_hardware = max_current * nominal_voltage * 3 %}
-          {% set raw_target_eff = raw_target_power / charger_efficiency %}
+          {% set eff = [charger_efficiency, 0.1] | max %}
+          {% set raw_target_eff = raw_target_power / eff %}
           {% set headroom_adjusted = grid_headroom / charger_efficiency if grid_headroom > 0 else 0 %}
           {% set adjusted_available_power_final = [raw_target_eff, headroom_adjusted, max_hardware] | min %}
           {% set force_single = state_attr('sensor.ev_load_balancer', 'single_phase_only') | bool %}
@@ -146,6 +149,7 @@ views:
           | Final available power | {{ adjusted_available_power_final | round(0) }} W |
           | Current limit result | {{ adjusted_current_limit }} A |
           | Phase result | {{ adjusted_phase_selection }} |
+          | Charger efficiency | {{ (charger_efficiency * 100) | round(1) }} % |
 
           {% if adjusted_current_limit == 0 %}
           **Why charging is stopped:** available power is below the minimum current of {{ min_current }} A, the mode is off, EMS/price blocked charging, or the target SOC has been reached.
@@ -259,9 +263,13 @@ views:
           | EMS active | {{ ems_active }} | {{ 'EMS participates' if ems_active else 'EMS ignored' }} |
           | EMS signal | {{ ems_signal_power }} W | {{ 'Allows grid charging' if signal_ok else 'Blocks grid charging' }} |
           | EMS as on/off | {{ ems_as_onoff }} | {{ 'Signal is binary' if ems_as_onoff else 'Signal is a watt budget' }} |
+          {% if car_aware %}
           | Car SOC | {{ soc }} % | Emergency below {{ emergency_soc }} %, comfort below {{ comfort_soc }} %, stop at {{ target_soc }} % when car-aware |
           | Emergency override | {{ emergency }} | {{ 'Bypasses EMS/price and charges up to power limit' if emergency else 'Normal guard logic applies' }} |
           | Target reached | {{ target_reached }} | {{ 'Charging target reached' if target_reached else 'Target not reached or car-aware off' }} |
+          {% else %}
+          | Car awareness | Off | SOC guards are disabled |
+          {% endif %}
 
           ## Timers
 

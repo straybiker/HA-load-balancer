@@ -13,18 +13,18 @@ template:
   - sensor:
       # Household settings
       - unique_id: ev_load_balancer_house
-        name: "EV Load Balancer House"
+        name: EV Load Balancer House
         state: "{{ states('sensor.netto_verbruik_huis_lp') | int(0) }}"
         icon: mdi:home-lightning-bolt
         device_class: power
-        unit_of_measurement: "W"
+        unit_of_measurement: W
         attributes:
           pv_power: "{{ states('sensor.sma_power_w') }}"
 
       # Charger settings
       - unique_id: ev_load_balancer_charger
-        name: "EV Load Balancer Charger"
-        state: "Alfen Eve Pro Single"
+        name: EV Load Balancer Charger
+        state: Alfen Eve Pro Single
         icon: mdi:ev-station
         attributes:
           # note the definition of the output variables
@@ -39,8 +39,8 @@ template:
           min_current: "{{ 6 | int }}"
           default_current: "{{ 7 | int }}"
           nominal_voltage: "{{ 230 | int }}"
-          phase_1_state: "1 Phase"
-          phase_3_state: "3 Phases"
+          phase_1_state: 1 Phase
+          phase_3_state: 3 Phases
           connection_state: >
             {% set m3 = states('sensor.alfen_eve_mode_3_state') %}
             {% if m3 in ['A', 'E'] %} Disconnected
@@ -51,8 +51,8 @@ template:
 
       # Cars settings
       - unique_id: ev_load_balancer_car
-        name: "EV Load Balancer Car"
-        state: "BMW iX3"
+        name: EV Load Balancer Car
+        state: BMW iX3
         icon: mdi:car-electric
         # Required parameters
         attributes:
@@ -63,7 +63,7 @@ template:
 
       # Load balancer settings
       - unique_id: ev_load_balancer
-        name: "EV Load Balancer"
+        name: EV Load Balancer
         state: "{{ states('input_select.ev_load_balancer_charge_mode') }}"
         # Power settings
         attributes:
@@ -76,9 +76,10 @@ template:
           phase_switch_delay: "{{ 5 | int }}"
           ems_signal: "{{ states('sensor.p_deferrable8') | float(0) }}"
           ems_as_onoff: "{{ states('input_boolean.ev_load_balancer_ems_as_onoff') | bool }}"
-          electricity_price: "{{ states('sensor.current_electricity_cost_dynamic_rate') | float(0) }}"
+          electricity_price: "{{ state_attr('sensor.current_electricity_cost_dynamic','rate_import') | float(0.0) }}"
           ems_control: "{{ states('input_boolean.ev_load_balancer_ems_control') == 'on' }}"
           max_cost_rate: "{{ states('input_number.ev_max_charging_cost') | float(0.30) }}"
           emergency_soc: "{{ states('input_number.ev_load_balancer_emergency_soc') | int(20) }}"
           comfort_soc: "{{ states('input_number.ev_load_balancer_comfort_soc') | int(50) }}"
           target_soc: "{{ states('input_number.ev_load_balancer_target_soc') | int(80) }}"
+          pv_prio_threshold: "{{ states('input_number.ev_load_balancer_pv_prio_threshold') | int(0) }}"

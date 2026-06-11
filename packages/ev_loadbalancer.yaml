@@ -21,12 +21,12 @@ input_select:
     icon: mdi:ev-station
     options:
       - "Off"
-      - "1-Phase Minimum"
-      - "3-Phases Minimum"
-      - "Limited"
-      - "Fast"
-      - "Solar"
-      - "Comfort"
+      - 1-Phase Minimum
+      - 3-Phases Minimum
+      - Limited
+      - Fast
+      - Solar
+      - Comfort
 
 input_boolean:
   ## Mandatory input
@@ -97,12 +97,12 @@ input_number:
     min: 0.10
     max: 0.50
     step: 0.01
-    unit_of_measurement: "€/kWh"
+    unit_of_measurement: €/kWh
 
   ev_load_balancer_pv_prio_threshold:
     name: EV Load Balancer PV prioritized threshold
     icon: mdi:flash
-    unit_of_measurement: "W"
+    unit_of_measurement: W
     mode: slider
     min: 0
     max: 10000
@@ -114,7 +114,7 @@ input_number:
 
 template:
   - sensor:
-      - name: "EV Load Balancer Internal Phase Monitor"
+      - name: EV Load Balancer Internal Phase Monitor
         unique_id: ev_load_balancer_internal_phase_monitor
         state: >
           {% set phases_entity = state_attr('sensor.ev_load_balancer_charger', 'phases_output') %}
@@ -145,13 +145,13 @@ timer:
   ev_load_balancer_phase_switching_timer:
     name: EV Load Balancer Phase Switching Timer
     icon: mdi:timer
-    duration: "00:05:00"
+    duration: 00:05:00
     restore: true
 
   ev_load_balancer_sensor_grace_period:
     name: EV Load Balancer Sensor Grace Period
     icon: mdi:timer-sand
-    duration: "00:00:20"
+    duration: 00:00:40
     restore: true
 
 script:
@@ -184,14 +184,14 @@ script:
             then:
               - variables:
                   max_delays: 30
-              - alias: "Set current to 0 before phase change (1->3 phase)"
+              - alias: Set current to 0 before phase change (1->3 phase)
                 action: number.set_value
                 target:
                   entity_id: "{{ state_attr('sensor.ev_load_balancer_charger','current_output') }}"
                 data:
                   value: 0
               # Wait for current to reach 0
-              - alias: "Wait for current to reach 0"
+              - alias: Wait for current to reach 0
                 repeat:
                   sequence:
                     - delay:
@@ -202,7 +202,7 @@ script:
                         {{ state_attr('sensor.ev_load_balancer_charger','current_input') | int == 0 or
                           repeat.index >= max_delays }}
           # Step 2: Change phases
-          - alias: "Change phases"
+          - alias: Change phases
             action: system_log.write
             data:
               level: info
@@ -215,7 +215,7 @@ script:
           # Wait for phase change to complete
           - variables:
               max_delays: 60
-          - alias: "Wait for phase change"
+          - alias: Wait for phase change
             repeat:
               sequence:
                 - delay:
@@ -294,7 +294,7 @@ script:
 automation:
   - alias: EV Charging Load Balancer
     id: ev_charging_load_balancer
-    description: "Generic EMS Budgeting with Max Cost Guard, Solar Turbo, and Efficiency Compensation"
+    description: Generic EMS Budgeting with Max Cost Guard, Solar Turbo, and Efficiency Compensation
 
     triggers:
       - trigger: time_pattern
@@ -321,6 +321,7 @@ automation:
           charger_phases_input: "{{ state_attr('sensor.ev_load_balancer_charger','phases_input') }}"
           grid_power_limit: "{{ state_attr('sensor.ev_load_balancer','power_limit') | int }}"
           nominal_voltage: "{{ state_attr('sensor.ev_load_balancer_charger','nominal_voltage') | int(230) }}"
+          phase_1: "{{ state_attr('sensor.ev_load_balancer_charger', 'phase_1_state') | default('1 Phase', true) }}"
           phase_3: "{{ state_attr('sensor.ev_load_balancer_charger', 'phase_3_state') | default('3 Phases', true) }}"
           selected_mode: "{{ states('sensor.ev_load_balancer') }}"
 
@@ -345,10 +346,6 @@ automation:
             {% set charger_min = state_attr('sensor.ev_load_balancer_charger', 'min_current') %}
             {% set car_min = state_attr('sensor.ev_load_balancer_car', 'min_current') %}
             {{ [car_min, charger_min] | max if car_aware else charger_min }}
-
-          p_min_1: "{{ (min_current | float(0)) * (nominal_voltage | float(230)) * 1 }}"
-          p_min_3: "{{ (min_current | float(0)) * (nominal_voltage | float(230)) * 3 }}"
-          p_fast: "{{ (max_current | float(0)) * (nominal_voltage | float(230)) * 3 }}"
 
           # Efficiency Compensation
           charger_efficiency: >
@@ -391,6 +388,10 @@ automation:
           # --- 4. INTENT: DESIRED GRID WATTAGE ---
           # What the selected mode theoretically wants (before EMS shaving)
           desired_grid_w: >
+            {% set p_min_1 = min_current * nominal_voltage * 1 %}
+            {% set p_min_3 = min_current * nominal_voltage * 3 %}
+            {% set p_fast = max_current * nominal_voltage * 3 %}
+
             {% if selected_mode == 'Off' %} 0
             {% elif is_emergency %} {{ grid_power_limit }} {# Emergency bypasses everything to get you to safety #}
             {% elif target_reached %} 0 
@@ -425,6 +426,7 @@ automation:
 
           # Calculate total available power
           raw_target_power: >
+            {% set p_min_1 = (min_current | float) * (nominal_voltage | float) * 1 %}
             {% set allowed_grid_bridge = pv_prio_threshold | float(0) %}
             {% set base_surplus = -household_power %}
 
@@ -455,6 +457,8 @@ automation:
           # --- 8. HARDWARE SELECTION (Phase & Amps) ---
           adjusted_phase_selection: >
             {% set force_single = state_attr('sensor.ev_load_balancer', 'single_phase_only') | bool %}
+            {% set p_min_1 = min_current * nominal_voltage * 1 %}
+            {% set p_min_3 = min_current * nominal_voltage * 3 %}
 
             {% if selected_mode == '1-Phase Minimum' %} {% set desired_phase = 1 %}
             {% elif selected_mode == '3-Phases Minimum' %} {% set desired_phase = 3 %}

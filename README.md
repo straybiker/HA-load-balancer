@@ -253,9 +253,42 @@ How modes interact with PV Priority and EMS signals:
 | **Comfort**| *Any* | *Any* | *Any* | **Hybrid**:<br>• **SOC < comfort_soc**: Behaves like **Limited** (Ensures charge).<br>• **SOC ≥ comfort_soc**: Behaves like **Solar** (Saves money). |
 
 #### EMS Configuration Highlights
-1. **EMS Signal**: Define `ems_signal` in `ev_loadbalancer_user_config.yaml`. A value of `0` blocks grid usage.
+1. **EMS Signal**: Define `ems_signal` in `ev_loadbalancer_user_config.yaml`. A value of `0` blocks grid usage while still allowing solar surplus charging.
 2. **Control Toggle**: Turn `input_boolean.ev_load_balancer_ems_control` **ON** to enable EMS gating.
 3. **Mode Toggle** (Optional): `input_boolean.ev_load_balancer_ems_as_onoff` (`false` = Budget Mode, `true` = Binary on/off Mode).
+
+#### Time-of-use EMS Budget Example
+
+This example uses **Budget Mode** to allow a maximum of **1.4 kW** grid charging during weekday peak hours, while using the normal remaining household headroom during off-peak hours and weekends. The load balancer still applies `input_number.ev_load_balancer_power_limit`, charger limits, car limits, and solar surplus logic, so this EMS budget does not bypass peak-power protection.
+
+Peak hours in this example are Monday to Friday from 07:00 to 22:00. Off-peak hours are Monday to Friday from 22:00 to 07:00 and all weekend.
+
+```yaml
+template:
+  - sensor:
+      - unique_id: ev_load_balancer_tou_ems_budget
+        name: "EV Load Balancer TOU EMS Budget"
+        icon: mdi:clock-lightning
+        device_class: power
+        state_class: measurement
+        unit_of_measurement: "W"
+        state: >
+          {% set peak_cap_w = 1400 %}
+          {% set power_limit = states('input_number.ev_load_balancer_power_limit') | float(0) %}
+          {% set household_power = states('sensor.ev_load_balancer_house') | float(0) %}
+          {% set headroom_w = [power_limit - household_power, 0] | max %}
+          {% set hour = now().hour + (now().minute / 60) %}
+          {% set is_peak = now().weekday() < 5 and 7 <= hour < 22 %}
+          {{ ([headroom_w, peak_cap_w] | min if is_peak else headroom_w) | round(0) }}
+```
+
+Then point the load balancer `ems_signal` attribute to the new sensor in `packages/ev_loadbalancer_user_config.yaml`:
+
+```yaml
+ems_signal: "{{ states('sensor.ev_load_balancer_tou_ems_budget') | float(0) }}"
+```
+
+For this example, turn `input_boolean.ev_load_balancer_ems_control` **ON** and keep `input_boolean.ev_load_balancer_ems_as_onoff` **OFF**, so the signal is interpreted as a watt budget.
 
 ## Configuration and Helpers
 Configuration is done in `packages/ev_loadbalancer_user_config.yaml`. Each logical "device" is represented as a template sensor whose attributes hold the settings. This allows the core logic file to reference a clean, stable interface regardless of your specific sensor names.
@@ -298,7 +331,7 @@ These attributes must be set in `ev_loadbalancer_user_config.yaml` to match your
 |---|---|---|
 | `power_update_threshold` | W | *[Optional]* Minimum power change before updating the charger. Prevents excessive updates. Defaults to `230 W`. |
 | `phase_switch_delay` | min | *[Optional]* Cooldown after switching 3→1 phase before allowing switch back. Defaults to `5 min`. |
-| `ems_signal` | W | *[Optional]* EMS power budget in Watts. Point to a sensor such as an EMHASS deferrable output. `0` blocks the grid. |
+| `ems_signal` | W | *[Optional]* EMS power budget in Watts. Point to a sensor such as an EMHASS deferrable output. `0` blocks grid usage while still allowing solar surplus charging. |
 | `electricity_price` | €/kWh | *[Optional]* Current electricity price sensor. Used with `max_cost_rate` to block grid charging when expensive. Omit or set to `0` to disable. |
 
 ---

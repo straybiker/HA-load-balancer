@@ -435,7 +435,6 @@ automation:
             {% endif %}
 
             {% if selected_mode == 'Off' %} 0
-            {% elif ems_active and (not ems_signal)  %} 0
             {% elif target_reached %} 0 
             {% elif selected_mode == 'Limited' and pv_prioritized and solar_surplus > 0 %} {{ solar_surplus }}
             {% else %} {{ effective_grid_w + solar_surplus }}

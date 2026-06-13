@@ -105,6 +105,7 @@ views:
           {% set raw_target_eff = raw_target_power / eff %}
           {% set headroom_adjusted = grid_headroom / charger_efficiency if grid_headroom > 0 else 0 %}
           {% set adjusted_available_power_final = [raw_target_eff, headroom_adjusted, max_hardware] | min %}
+          {% set power_limit_is_cap = raw_target_eff > headroom_adjusted and headroom_adjusted <= max_hardware %}
           {% set force_single = state_attr('sensor.ev_load_balancer', 'single_phase_only') | bool %}
           {% if selected_mode == '1-Phase Minimum' %}
             {% set desired_phase = 1 %}
@@ -142,17 +143,25 @@ views:
           | Current charger power | {{ charger_power | round(0) }} W |
           | Applied current | {{ charger_current_input }} A |
           | Applied phases | {{ charger_phases_input }} |
+          | Configured power limit | {{ grid_power_limit }} W |
           | Household net power | {{ household_power }} W |
+          | Remaining headroom under limit | {{ grid_headroom | round(0) }} W |
           | Solar surplus used by logic | {{ solar_surplus | round(0) }} W |
-          | Grid headroom | {{ grid_headroom | round(0) }} W |
           | Raw target power | {{ raw_target_power | round(0) }} W |
           | Final available power | {{ adjusted_available_power_final | round(0) }} W |
+          | Power-limit protection | {{ 'Active: output is capped to stay below power_limit' if power_limit_is_cap else 'Not the active cap right now' }} |
           | Current limit result | {{ adjusted_current_limit }} A |
           | Phase result | {{ adjusted_phase_selection }} |
           | Charger efficiency | {{ (charger_efficiency * 100) | round(1) }} % |
 
-          {% if adjusted_current_limit == 0 %}
+          {% if adjusted_current_limit == 0 and selected_mode == '3-Phases Minimum' and grid_headroom < p_min_3 %}
+          **Why charging is stopped:** 3-Phases Minimum needs about {{ p_min_3 | round(0) }} W of headroom, but only {{ grid_headroom | round(0) }} W is available under the configured power limit. It stops instead of exceeding the capaciteitspiek or falling back to 1 phase.
+          {% elif adjusted_current_limit == 0 and selected_mode == '1-Phase Minimum' and grid_headroom < p_min_1 %}
+          **Why charging is stopped:** 1-Phase Minimum needs about {{ p_min_1 | round(0) }} W of headroom, but only {{ grid_headroom | round(0) }} W is available under the configured power limit. It stops instead of exceeding the capaciteitspiek.
+          {% elif adjusted_current_limit == 0 %}
           **Why charging is stopped:** available power is below the minimum current of {{ min_current }} A, the mode is off, EMS/price blocked charging, or the target SOC has been reached.
+          {% elif power_limit_is_cap %}
+          **Main cap:** the configured power limit is active. The charger output is clipped to the remaining headroom under the capaciteitspiek, including in {{ selected_mode }} mode.
           {% elif target_power < raw_target_power %}
           **Main cap:** requested power is higher than the physical/grid/hardware limit after efficiency compensation.
           {% elif selected_mode == 'Limited' and pv_prioritized and solar_surplus > 0 %}
@@ -217,6 +226,14 @@ views:
           | 3 phase minimum | {{ min_current }} A x {{ voltage }} V x 3 | {{ p_min_3 | round(0) }} W |
           | Power limit | Household + charging cap | {{ limit }} W |
 
+          ## Capacity Peak Rule
+
+          During normal load-balancer calculation, the configured **Power
+          limit** is applied as the household + charging cap. `Fast`,
+          `1-Phase Minimum`, and `3-Phases Minimum` are target requests; the
+          final charger current is still clipped to the remaining headroom
+          under that cap.
+
           If the car appears to stick near **4 kW**, that often means it is at
           the 3 phase minimum: {{ p_min_3 | round(0) }} W. To go higher, the
           final available power must exceed that minimum enough to request more
@@ -227,10 +244,10 @@ views:
           | Mode | Behavior |
           |---|---|
           | Off | Sets current to 0 A. |
-          | 1-Phase Minimum | Requests minimum current on 1 phase. |
-          | 3-Phases Minimum | Requests minimum current on 3 phases. |
+          | 1-Phase Minimum | Requests minimum current on 1 phase, still capped by the configured power limit. |
+          | 3-Phases Minimum | Requests minimum current on 3 phases, still capped by the configured power limit. If there is not enough headroom, it stops instead of exceeding the cap or falling back to 1 phase. |
           | Limited | Uses the configured power limit and adds solar surplus unless PV priority changes that behavior. |
-          | Fast | Requests hardware maximum current on 3 phases, still constrained by safety logic. |
+          | Fast | Requests hardware maximum current on 3 phases, then clips output to the remaining headroom under the configured power limit. |
           | Solar | Uses solar surplus only; no grid power is requested. |
           | Comfort | Limited below comfort SOC, solar-like above comfort SOC. |
 

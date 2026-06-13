@@ -66,7 +66,7 @@ views:
             {% set desired_grid_w = grid_power_limit %}
           {% elif selected_mode == 'Comfort' %}
             {% set desired_grid_w = grid_power_limit if current_soc < comfort_soc else 0 %}
-          {% elif selected_mode == 'Solfar' %}
+          {% elif selected_mode == 'Solar' %}
             {% set desired_grid_w = 0 %}
           {% else %}
             {% set desired_grid_w = 0 %}

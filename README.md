@@ -215,7 +215,7 @@ flowchart TD
     Emergency -- Yes --> MaxLimit[Bypass EMS/price/target. Request Power Limit]
     Emergency -- No --> Target{Is car_aware and SOC >= Target SOC?}
 
-    Target -- Yes --> StopCharge[Stop Charging]
+    Target -- Yes --> ZeroOutput[Set 0 Amps]
     Target -- No --> Price{Is Power Price <= Max Cost?}
 
     Price -- No --> Block[Block Grid. Solar Surplus Only]
@@ -226,25 +226,23 @@ flowchart TD
 
     EMSGating --> ModeCheck{Which Mode?}
 
-    ModeCheck -- Off/Blocked --> MOff[0 Amps]
+    ModeCheck -- Off/Blocked --> ZeroOutput
     ModeCheck -- 1P/3P Minimum --> MFixed[Request minimum phase/current]
     ModeCheck -- Solar Only --> MSolar[Request PV surplus only]
     ModeCheck -- Limited/Comfort --> MLimit[Request up to Power Limit - House + PV]
     ModeCheck -- Fast --> MFast[Request hardware maximum]
 
     MaxLimit --> FinalCap
-    StopCharge --> SetCharger([Send Modbus Updates])
     Block --> ModeCheck
-    MOff --> SetCharger
     MFixed --> FinalCap
     MSolar --> FinalCap
     MLimit --> FinalCap
     MFast --> FinalCap
 
     FinalCap[Final cap: limit to configured power limit headroom, charger/car limits, and minimum current] --> EnoughHeadroom{Enough headroom for selected phase minimum?}
-    EnoughHeadroom -- No --> StopAtZero[Set 0 Amps]
+    EnoughHeadroom -- No --> ZeroOutput
     EnoughHeadroom -- Yes --> SetCharger
-    StopAtZero --> SetCharger
+    ZeroOutput --> SetCharger([Send Modbus Updates])
 ```
 
 All charging requests pass through the final cap before the charger is updated. This means **Fast**, **1-Phase Minimum**, and **3-Phases Minimum** are requests, not bypasses: they still stay within the configured `power_limit` / capaciteitspiek during normal load-balancer calculation.

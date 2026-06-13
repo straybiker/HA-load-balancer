@@ -269,7 +269,7 @@ How modes interact with PV Priority and EMS signals:
 
 #### Time-of-use EMS Budget Example
 
-This example uses **Budget Mode** to allow a maximum of **1.4 kW grid import for charging** during weekday peak hours, while using the normal remaining household headroom during off-peak hours and weekends. Solar surplus can still be added on top by the load balancer's Solar Turbo behavior. The load balancer still applies `input_number.ev_load_balancer_power_limit`, charger limits, car limits, and solar surplus logic, so this EMS budget does not bypass peak-power protection.
+When not using a dedicated EMS system, this example uses **Budget Mode** to allow a maximum of **1.4 kW grid import for charging** during weekday peak hours, while using the normal remaining household headroom during off-peak hours and weekends. Solar surplus can still be added on top by the load balancer's Solar Turbo behavior. The load balancer still applies `input_number.ev_load_balancer_power_limit`, charger limits, car limits, and solar surplus logic, so this EMS budget does not bypass peak-power protection.
 
 Peak hours in this example are Monday to Friday from 07:00 to 22:00. Off-peak hours are Monday to Friday from 22:00 to 07:00 and all weekend.
 

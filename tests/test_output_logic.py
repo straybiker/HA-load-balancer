@@ -104,7 +104,6 @@ TEMPLATE_STRING = """
 {% endif %}
 
 {% if selected_mode == 'Off' %} {% set raw_target_power = 0 %}
-{% elif ems_active and (not ems_signal) %} {% set raw_target_power = 0 %}
 {% elif target_reached %} {% set raw_target_power = 0 %}
 {% elif selected_mode == 'Limited' and pv_prioritized and solar_surplus > 0 %} {% set raw_target_power = solar_surplus %}
 {% else %} {% set raw_target_power = effective_grid_w + solar_surplus %}

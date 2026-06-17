@@ -447,7 +447,7 @@ automation:
             {% endif %}
 
             {% set current_phase = 3 if states(state_attr('sensor.ev_load_balancer_charger','phases_output')) == phase_3 else 1 %}
-            {% if (desired_phase > current_phase and states('timer.ev_load_balancer_phase_switching_timer') == 'active') %}
+            {% if (desired_phase > current_phase and states('timer.ev_load_balancer_phase_switching_timer') == 'active' and selected_mode in ['Limited', 'Solar', 'Comfort']) %}
               {{ current_phase }}
             {% else %}
               {{ desired_phase }}
@@ -494,7 +494,7 @@ automation:
                 metadata: {}
                 data:
                   current: 0
-                  phase: "{{ state_attr('sensor.ev_load_balancer_charger','default_phases') }}"
+                  phase: "{{ adjusted_phase_selection }}"
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
 
@@ -548,6 +548,8 @@ automation:
       - condition: template
         value_template: >
           {{ states('sensor.ev_load_balancer') in ['Limited', 'Solar', 'Comfort'] }}
+      - condition: template
+        value_template: "{{ state_attr('sensor.ev_load_balancer_charger','connection_state') == 'Connected' }}"
     actions:
       - action: timer.start
         target:

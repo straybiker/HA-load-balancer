@@ -120,6 +120,27 @@ template:
           {% set phases_entity = state_attr('sensor.ev_load_balancer_charger', 'phases_output') %}
           {{ states(phases_entity) if phases_entity else 'unknown' }}
 
+      - name: "EV Load Balancer PV Power"
+        unique_id: ev_load_balancer_pv_power
+        state: "{{ state_attr('sensor.ev_load_balancer_house', 'pv_power') | float(0) }}"
+        icon: mdi:solar-power
+        device_class: power
+        unit_of_measurement: "W"
+
+      - name: "EV Load Balancer Charger Active Power"
+        unique_id: ev_load_balancer_charger_active_power
+        state: "{{ state_attr('sensor.ev_load_balancer_charger', 'active_power') | float(0) }}"
+        icon: mdi:ev-station
+        device_class: power
+        unit_of_measurement: "W"
+
+      - name: "EV Load Balancer Charger Applied Current"
+        unique_id: ev_load_balancer_charger_applied_current
+        state: "{{ state_attr('sensor.ev_load_balancer_charger', 'current_input') | float(0) }}"
+        icon: mdi:current-ac
+        device_class: current
+        unit_of_measurement: "A"
+
 timer:
   ev_load_balancer_phase_switching_timer:
     name: EV Load Balancer Phase Switching Timer
@@ -416,7 +437,6 @@ automation:
             {% endif %}
 
             {% if selected_mode == 'Off' %} 0
-            {% elif ems_active and (not ems_signal)  %} 0
             {% elif target_reached %} 0 
             {% elif selected_mode == 'Limited' and pv_prioritized and solar_surplus > 0 %} {{ solar_surplus }}
             {% else %} {{ effective_grid_w + solar_surplus }}

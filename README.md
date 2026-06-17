@@ -10,6 +10,7 @@ A car charging load balancer for Home Assistant tailored to Belgian energy regul
 - [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
+- [Dashboard](#dashboard)
 - [Details](#details)
 - [Charge Modes](#charge-modes--logic)
 - [Configuration and Helpers](#configuration-and-helpers)
@@ -149,6 +150,29 @@ Restart Home Assistant.
 ### Step 5: Set parameters
 Set the helpers that are now available in the UI to the desired values.
 
+## Dashboard
+
+An optional Lovelace YAML dashboard is included at `dashboards/ev_loadbalancer_logic_dashboard.yaml`.
+It combines a compact user manual with live sensor values and recalculates the same decision path as the automation:
+target power, solar surplus, grid headroom, phase choice, current limit, EMS/price guards, SOC guards, timers, and sensor health.
+
+This is useful when the charger does not behave as expected, for example when it appears to stay around 4 kW. The dashboard shows whether the limit comes from 3-phase minimum current, solar-only mode, PV priority, single-phase-only mode, EMS/price blocking, phase switching delay, or hardware/current limits.
+
+To show it in the Home Assistant sidebar, copy the `dashboards` folder into your Home Assistant configuration directory and add this to `configuration.yaml`:
+
+```yaml
+lovelace:
+  dashboards:
+    ev-loadbalancer-logic:
+      mode: yaml
+      title: EV Load Balancer Logic
+      icon: mdi:ev-station
+      show_in_sidebar: true
+      filename: dashboards/ev_loadbalancer_logic_dashboard.yaml
+```
+
+Restart Home Assistant or reload Lovelace dashboards after adding the configuration.
+
 ## Details
 This load balancer checks every 10 seconds the current household power consumption and sets the charger output parameters, phase and current, according to the remaining available power. The total allowed power to use (capaciteitspiek), household + EV charger, is defined in an input helper parameter.
 The load balancer also takes charger efficiency into account by comparing the calculated power output with the actual power output.
@@ -175,9 +199,9 @@ The available charge modes dictate how the car charges based on solar availabili
 | Mode | Description |
 |---|---|
 | **Off** | Charging disabled. |
-| **1-Phase Minimum** | Fixed single-phase charging at minimum current (e.g. 6A = ~1.4 kW). Not affected by grid/EMS constraints. |
-| **3-Phases Minimum** | Fixed three-phase charging at minimum current (e.g. 6A = ~4.1 kW). Not affected by grid/EMS constraints. |
-| **Fast** | Full speed charging at maximum rated current. EMS can block grid usage, forcing solar-only charging if active. |
+| **1-Phase Minimum** | Requests single-phase charging at minimum current (e.g. 6A = ~1.4 kW). Still capped by the configured `power_limit`; if there is not enough headroom, charging stops. |
+| **3-Phases Minimum** | Requests three-phase charging at minimum current (e.g. 6A = ~4.1 kW). Still capped by the configured `power_limit`; if there is not enough headroom, charging stops instead of falling back to 1 phase. |
+| **Fast** | Requests maximum rated current, then clips the final charger output to the remaining headroom under `power_limit`. EMS can block grid usage, forcing solar-only charging if active. |
 | **Limited** | Dynamic power limiting based on household consumption up to `power_limit`. EMS signal is used to cap or block grid usage. |
 | **Solar** | Charges only on solar surplus. Grid is never used, regardless of EMS or price. |
 | **Comfort** | Hybrid mode: behaves as **Limited** while SOC is below `comfort_soc`, then switches to **Solar** once the minimum SOC is reached. |
@@ -188,10 +212,10 @@ The system executes the following checks every 10 seconds:
 ```mermaid
 flowchart TD
     Start([Execute every 10s]) --> Emergency{Is Car SOC < Emergency SOC?}
-    Emergency -- Yes --> MaxLimit[Bypass all constraints. Charge up to Power Limit]
+    Emergency -- Yes --> MaxLimit[Bypass EMS/price/target. Request Power Limit]
     Emergency -- No --> Target{Is car_aware and SOC >= Target SOC?}
 
-    Target -- Yes --> StopCharge[Stop Charging]
+    Target -- Yes --> ZeroOutput[Set 0 Amps]
     Target -- No --> Price{Is Power Price <= Max Cost?}
 
     Price -- No --> Block[Block Grid. Solar Surplus Only]
@@ -202,16 +226,26 @@ flowchart TD
 
     EMSGating --> ModeCheck{Which Mode?}
 
-    ModeCheck -- Off/Blocked --> MOff[0 Amps]
-    ModeCheck -- Fixed Modes --> MFixed[Set fixed Phase/Amps]
-    ModeCheck -- Solar Only --> MSolar[Calculate Amps based purely on PV Surplus]
-    ModeCheck -- Limited/Fast --> MLimit[Calculate Available Power = Limit - House + PV]
+    ModeCheck -- Off/Blocked --> ZeroOutput
+    ModeCheck -- 1P/3P Minimum --> MFixed[Request minimum phase/current]
+    ModeCheck -- Solar Only --> MSolar[Request PV surplus only]
+    ModeCheck -- Limited/Comfort --> MLimit[Request up to Power Limit - House + PV]
+    ModeCheck -- Fast --> MFast[Request hardware maximum]
 
-    MOff --> SetCharger([Send Modbus Updates])
-    MFixed --> SetCharger
-    MSolar --> SetCharger
-    MLimit --> SetCharger
+    MaxLimit --> FinalCap
+    Block --> ModeCheck
+    MFixed --> FinalCap
+    MSolar --> FinalCap
+    MLimit --> FinalCap
+    MFast --> FinalCap
+
+    FinalCap[Final cap: limit to configured power limit headroom, charger/car limits, and minimum current] --> EnoughHeadroom{Enough headroom for selected phase minimum?}
+    EnoughHeadroom -- No --> ZeroOutput
+    EnoughHeadroom -- Yes --> SetCharger
+    ZeroOutput --> SetCharger([Send Modbus Updates])
 ```
+
+All charging requests pass through the final cap before the charger is updated. This means **Fast**, **1-Phase Minimum**, and **3-Phases Minimum** are requests, not bypasses: they still stay within the configured `power_limit` / capaciteitspiek during normal load-balancer calculation.
 
 ### Advanced Behavior Matrix
 How modes interact with PV Priority and EMS signals:
@@ -219,8 +253,8 @@ How modes interact with PV Priority and EMS signals:
 | Mode | PV Prio | EMS Control | EMS Signal | Resulting Behavior |
 | :--- | :--- | :--- | :--- | :--- |
 | **Solar** | *Any* | *Any* | *Any* | **Solar Only**: Charges strictly on solar surplus. Grid is never used. |
-| **Fast** | *Any* | OFF | - | **Max Power**: Charges at maximum capacity (e.g. 11kW). |
-| | | ON | ON (>0W) | **Max Power**: EMS Budget is ignored (treated as binary "Go"). |
+| **Fast** | *Any* | OFF | - | **Max Power Request**: Requests maximum capacity (e.g. 11kW), then the final `power_limit` cap is applied. |
+| | | ON | ON (>0W) | **Max Power Request**: EMS Budget is ignored (treated as binary "Go"), then the final `power_limit` cap is applied. |
 | | | ON | OFF (0W)| **Solar Only**: Grid blocked by EMS. Charges only if solar surplus exists. |
 | **Limited**| OFF | OFF | - | **Max Grid**: Charges up to `power_limit` + Solar Surplus. |
 | | | ON | ON (>0W) | **Optimized Grid**: <br>• **Budget Mode**: Grid limit = `ems_signal`.<br>• **On/Off Mode**: Grid limit = `power_limit`.<br>Solar surplus is added on *top* of this limit (Turbo). |
@@ -229,9 +263,44 @@ How modes interact with PV Priority and EMS signals:
 | **Comfort**| *Any* | *Any* | *Any* | **Hybrid**:<br>• **SOC < comfort_soc**: Behaves like **Limited** (Ensures charge).<br>• **SOC ≥ comfort_soc**: Behaves like **Solar** (Saves money). |
 
 #### EMS Configuration Highlights
-1. **EMS Signal**: Define `ems_signal` in `ev_loadbalancer_user_config.yaml`. A value of `0` blocks grid usage.
+1. **EMS Signal**: Define `ems_signal` in `ev_loadbalancer_user_config.yaml`. A value of `0` blocks grid usage while still allowing solar surplus charging.
 2. **Control Toggle**: Turn `input_boolean.ev_load_balancer_ems_control` **ON** to enable EMS gating.
 3. **Mode Toggle** (Optional): `input_boolean.ev_load_balancer_ems_as_onoff` (`false` = Budget Mode, `true` = Binary on/off Mode).
+
+#### Time-of-use EMS Budget Example
+
+When not using a dedicated EMS system, this example uses **Budget Mode** to allow a maximum of **1.4 kW grid import for charging** during weekday peak hours, while using the normal remaining household headroom during off-peak hours and weekends. Solar surplus can still be added on top by the load balancer's Solar Turbo behavior. The load balancer still applies `input_number.ev_load_balancer_power_limit`, charger limits, car limits, and solar surplus logic, so this EMS budget does not bypass peak-power protection.
+
+Peak hours in this example are Monday to Friday from 07:00 to 22:00. Off-peak hours are Monday to Friday from 22:00 to 07:00 and all weekend.
+
+If you add this to `packages/ev_loadbalancer_user_config.yaml`, merge the sensor item into the existing `template:` / `sensor:` list instead of creating a second top-level `template:` key in the same file.
+
+```yaml
+template:
+  - sensor:
+      - unique_id: ev_load_balancer_tou_ems_budget
+        name: "EV Load Balancer TOU EMS Budget"
+        icon: mdi:clock-lightning
+        device_class: power
+        state_class: measurement
+        unit_of_measurement: "W"
+        state: >
+          {% set peak_cap_w = 1400 %}
+          {% set power_limit = states('input_number.ev_load_balancer_power_limit') | float(0) %}
+          {% set household_power = states('sensor.ev_load_balancer_house') | float(0) %}
+          {% set headroom_w = [power_limit - household_power, 0] | max %}
+          {% set hour = now().hour + (now().minute / 60) %}
+          {% set is_peak = now().weekday() < 5 and 7 <= hour < 22 %}
+          {{ ([headroom_w, peak_cap_w] | min if is_peak else headroom_w) | round(0) }}
+```
+
+Then point the load balancer `ems_signal` attribute to the new sensor in `packages/ev_loadbalancer_user_config.yaml`:
+
+```yaml
+ems_signal: "{{ states('sensor.ev_load_balancer_tou_ems_budget') | float(0) }}"
+```
+
+For this example, turn `input_boolean.ev_load_balancer_ems_control` **ON** and keep `input_boolean.ev_load_balancer_ems_as_onoff` **OFF**, so the signal is interpreted as a watt budget.
 
 ## Configuration and Helpers
 Configuration is done in `packages/ev_loadbalancer_user_config.yaml`. Each logical "device" is represented as a template sensor whose attributes hold the settings. This allows the core logic file to reference a clean, stable interface regardless of your specific sensor names.
@@ -259,7 +328,7 @@ These attributes are wired to `input_*` helpers that the package defines. They a
 | `ems_control` | `input_boolean.ev_load_balancer_ems_control` | bool | Master switch to activate EMS gating. |
 | `ems_as_onoff` | `input_boolean.ev_load_balancer_ems_as_onoff` | bool | `false` = Budget mode; `true` = Binary on/off mode. |
 | `max_cost_rate` | `input_number.ev_max_charging_cost` | €/kWh | Maximum electricity price at which grid charging is allowed. |
-| `emergency_soc` | `input_number.ev_load_balancer_emergency_soc` | % | SOC floor — below this, **all** constraints (EMS, price, solar) are bypassed. Default `20%`. |
+| `emergency_soc` | `input_number.ev_load_balancer_emergency_soc` | % | SOC floor - below this, EMS/price/target behavior is bypassed and charging is requested up to `power_limit`. Default `20%`. |
 | `target_soc` | `input_number.ev_load_balancer_target_soc` | % | *(car_aware only)* Target SOC ceiling — charging stops when this SOC is reached. Emergency SOC floor still overrides. Default `80%`. |
 | `comfort_soc` | `input_number.ev_load_balancer_comfort_soc` | % | Comfort mode minimum SOC. Below this, Comfort acts as Limited; above, it switches to Solar. |
 
@@ -274,7 +343,7 @@ These attributes must be set in `ev_loadbalancer_user_config.yaml` to match your
 |---|---|---|
 | `power_update_threshold` | W | *[Optional]* Minimum power change before updating the charger. Prevents excessive updates. Defaults to `230 W`. |
 | `phase_switch_delay` | min | *[Optional]* Cooldown after switching 3→1 phase before allowing switch back. Defaults to `5 min`. |
-| `ems_signal` | W | *[Optional]* EMS power budget in Watts. Point to a sensor such as an EMHASS deferrable output. `0` blocks the grid. |
+| `ems_signal` | W | *[Optional]* EMS power budget in Watts. Point to a sensor such as an EMHASS deferrable output. `0` blocks grid usage while still allowing solar surplus charging. |
 | `electricity_price` | €/kWh | *[Optional]* Current electricity price sensor. Used with `max_cost_rate` to block grid charging when expensive. Omit or set to `0` to disable. |
 
 ---
@@ -337,7 +406,7 @@ Car configuration is optional and only needed when `car_aware` is enabled. The s
 
 | Attribute | Helper | Scope | Priority | Purpose |
 |---|---|---|---|---|
-| `emergency_soc` | `input_number.ev_load_balancer_emergency_soc` | All modes | **Highest** | Safety floor — bypasses **all** constraints (EMS, price, solar). Charges at `power_limit`. |
+| `emergency_soc` | `input_number.ev_load_balancer_emergency_soc` | All modes | **Highest** | Safety floor - bypasses EMS/price/target behavior and requests charging up to `power_limit`. |
 | `target_soc` | `input_number.ev_load_balancer_target_soc` | All modes (car_aware only) | High | Charging ceiling — stops all charging (including solar surplus) once reached. Emergency SOC overrides this. |
 | `comfort_soc` | `input_number.ev_load_balancer_comfort_soc` | Comfort mode only | Normal | Minimum SOC for Comfort mode. Below → Limited behaviour. Above → Solar behaviour. |
 

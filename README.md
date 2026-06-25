@@ -7,6 +7,7 @@ A car charging load balancer for Home Assistant tailored to Belgian energy regul
 
 ## Table of Contents
 - [Introduction](#introduction)
+- [Quick Start](#quick-start)
 - [Features](#features)
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
@@ -27,9 +28,6 @@ This Home Assistant automation provides intelligent load balancing for EV chargi
 This project is ideal for users with an EV charger that can switch phases and adjust current, such as the Alfen Eve Pro wallbox. When **car-aware** mode is enabled, the load balancer can also read the car's State of Charge (SOC) to respect per-session charge limits and hardware minimums reported by the car itself.
 
 This is not a fully-fledged Home Assistant integration (yet), but a [package](https://www.home-assistant.io/docs/configuration/packages/) that can easily be integrated into your existing Home Assistant setup.
-
-> [!IMPORTANT]
-> The separate YAML files are deprecated and archived in the archive folder.
 
 ### System Architecture
 ```mermaid
@@ -323,14 +321,14 @@ These attributes are wired to `input_*` helpers that the package defines. They a
 | `power_limit` | `input_number.ev_load_balancer_power_limit` | W | Maximum total power (household + charging) allowed. |
 | `car_aware` | `input_boolean.ev_load_balancer_car_aware` | bool | Enable car-aware mode. When enabled, the car's SOC and current limits are respected. |
 | `pv_prioritized` | `input_boolean.ev_load_balancer_pv_prioritized` | bool | Solar-first priority for **Limited** mode. |
-| `pv_prio_threshold` | `input_number.ev_load_balancer_pv_prio_threshold` | W | Threshold for solar-first priority. The amount of power the can be added with grid power to fill the gap between 0W and the minimum required power to charge. This prevents going 1000W or more solar going to waste. |
+| `pv_prio_threshold` | `input_number.ev_load_balancer_pv_prio_threshold` | W | Threshold for solar-first priority. How much grid power may be added to bridge the gap between 0W and the minimum power required to charge, preventing 1000W or more of solar from going to waste. Only applies to **Limited** mode with `pv_prioritized` enabled. |
 | `single_phase_only` | `input_boolean.ev_load_balancer_single_phase_only` | bool | Force all modes to single-phase. |
 | `ems_control` | `input_boolean.ev_load_balancer_ems_control` | bool | Master switch to activate EMS gating. |
 | `ems_as_onoff` | `input_boolean.ev_load_balancer_ems_as_onoff` | bool | `false` = Budget mode; `true` = Binary on/off mode. |
 | `max_cost_rate` | `input_number.ev_max_charging_cost` | €/kWh | Maximum electricity price at which grid charging is allowed. |
 | `emergency_soc` | `input_number.ev_load_balancer_emergency_soc` | % | SOC floor - below this, EMS/price/target behavior is bypassed and charging is requested up to `power_limit`. Default `20%`. |
 | `target_soc` | `input_number.ev_load_balancer_target_soc` | % | *(car_aware only)* Target SOC ceiling — charging stops when this SOC is reached. Emergency SOC floor still overrides. Default `80%`. |
-| `comfort_soc` | `input_number.ev_load_balancer_comfort_soc` | % | Comfort mode minimum SOC. Below this, Comfort acts as Limited; above, it switches to Solar. |
+| `comfort_soc` | `input_number.ev_load_balancer_comfort_soc` | % | Comfort mode minimum SOC. Below this, Comfort acts as Limited; above, it switches to Solar. Default `50%`. |
 
 > [!NOTE]
 > `target_soc` and `comfort_soc` are optional helpers. `target_soc` can be removed if car-aware mode is not used. `comfort_soc` can be removed if Comfort mode is not used.
@@ -445,7 +443,8 @@ entities:
 ## Advanced Features
 
 ### PV Optimization for Modes Limited, Solar and Comfort
-- `pv_prioritized` is only applicable to **Limited** mode. When enabled, the car charges purely on solar surplus if available. If solar is insufficient, grid power fills up to `power_limit`. This is useful to maximize self-consumption while guaranteeing the car is charged.
+- `pv_prioritized` is only applicable to **Limited** mode. When enabled, the car charges on solar surplus if available. If solar is insufficient, grid power fills up to `power_limit`. This is useful to maximize self-consumption while guaranteeing the car is charged.
+  - When solar surplus exists but is just below the minimum charge power, `pv_prio_threshold` allows a small amount of grid power to bridge the gap so that surplus is not wasted. With `pv_prio_threshold` set to `0`, priority mode is strictly solar-only.
 - With **Solar** charging, only remaining solar power is used. If this is not enough to charge the car, charging stops. Useful when the car only needs a small top-up or is connected for an extended period.
 - In **Comfort** mode, the system behaves as **Limited** when the current SOC is below `comfort_soc`, and as **Solar** once it exceeds it. This is *not* the same as Limited with `pv_prioritized` enabled. In Comfort, charging stops once the minimum SOC is reached, while in Limited it continues until the car is fully charged.
 

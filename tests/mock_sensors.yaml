@@ -1,62 +1,39 @@
-template:
-  # Mock house power sensor
-  - sensor:
-      - name: "Mock House Power"
-        unique_id: netto_verbruik_huis_lp
-        unit_of_measurement: "W"
-        state: "{{ states('input_number.mock_house_power') | int(0) }}"
+# Mock sensors and control entities for testing the EV Load Balancer package.
+#
+# The mock entity IDs intentionally match the ones referenced in
+# packages/ev_loadbalancer_user_config.yaml, so the unmodified package can run
+# against them. Drive a scenario with the input_* helpers (or the scripts in
+# configuration.yaml).
+#
+# Friendly names are set to the target object_id on purpose so Home Assistant
+# generates the exact entity_id the package expects.
 
-      # Mock charger sensors
-      - name: "Mock Charger Power"
-        unique_id: alfen_eve_active_power_total_socket_1
-        unit_of_measurement: "W"
-        state: "{{ states('input_number.mock_charger_power') | int(0) }}"
-      
-      - name: "Mock Charger Current"
-        unique_id: alfen_eve_main_active_max_current_socket_1
-        unit_of_measurement: "A"
-        state: "{{ states('input_number.mock_charger_current') | int(0) }}"
-      
-      - name: "Mock Charger Phases"
-        unique_id: alfen_eve_connector_1_max_allowed_of_phases
-        state: "{{ states('input_select.mock_charger_phases') }}"
-
-      - name: "Mock Charger State"
-        unique_id: alfen_eve_mode3_state_socket_1
-        state: "{{ states('input_select.mock_charger_state') }}"
-
-      # Mock car sensor
-      - name: "Mock Car Battery"
-        unique_id: ix3_m_sport_remaining_battery_percent
-        unit_of_measurement: "%"
-        state: "{{ states('input_number.mock_car_battery') | int(0) }}"
-
-      # Mock PV sensor
-      - name: "Mock PV Power"
-        unique_id: sma_power_w
-        unit_of_measurement: "W"
-        state: "{{ states('input_number.mock_pv_power') | int(0) }}"
-
-# Input helpers for controlling mock values
 input_number:
   mock_house_power:
-    name: Mock House Power
+    name: Mock Net House Power
     min: -10000
     max: 10000
     step: 100
     unit_of_measurement: "W"
 
+  mock_pv_power:
+    name: Mock PV Power
+    min: 0
+    max: 10000
+    step: 100
+    unit_of_measurement: "W"
+
   mock_charger_power:
-    name: Mock Charger Power
+    name: Mock Charger Active Power
     min: 0
     max: 11000
     step: 100
     unit_of_measurement: "W"
 
-  mock_charger_current:
-    name: Mock Charger Current
-    min: 0
-    max: 16
+  mock_charger_max_current:
+    name: Mock Charger Max Current
+    min: 6
+    max: 32
     step: 1
     unit_of_measurement: "A"
 
@@ -67,47 +44,115 @@ input_number:
     step: 1
     unit_of_measurement: "%"
 
-  mock_pv_power:
-    name: Mock PV Power
+  # Backing store written by the mock charger current output (number) entity.
+  mock_current_store:
+    name: Mock Charger Current Store
     min: 0
-    max: 10000
-    step: 100
-    unit_of_measurement: "W"
-
-input_select:
-  mock_charger_phases:
-    name: Mock Charger Phases
-    options:
-      - "1 Phase"
-      - "3 Phases"
-
-  mock_charger_state:
-    name: Mock Charger State
-    options:
-      - "STATE_A"  # Disconnected
-      - "STATE_B1" # Connected
-      - "STATE_B2" # Connected
-      - "STATE_C1" # Connected
-      - "STATE_C2" # Connected
-      - "STATE_D1" # Connected
-      - "STATE_D2" # Connected
-      - "STATE_E"  # Disconnected
-      - "STATE_F"  # Error
-
-# Mock control entities
-number:
-  - platform: template
-    name: Mock Current Output
-    unique_id: alfen_eve_power_connector_max_current_socket_1
-    min: 6
-    max: 16
-    step: 1
+    max: 32
+    step: 0.1
     unit_of_measurement: "A"
 
-select:
-  - platform: template
-    name: Mock Phase Output
-    unique_id: alfen_eve_installation_max_allowed_phases
+input_select:
+  # IEC-61851 Mode 3 state. Values match the connection_state mapping in the
+  # user config (no STATE_ prefix).
+  mock_charger_state:
+    name: Mock Charger Mode 3 State
+    options:
+      - "A"   # Disconnected
+      - "B1"  # Connected
+      - "B2"  # Connected
+      - "C1"  # Connected
+      - "C2"  # Connected
+      - "D1"  # Connected
+      - "D2"  # Connected
+      - "E"   # Disconnected
+      - "F"   # Error
+
+  # Backing store written by the mock phase output (select) entity.
+  mock_charger_phases_store:
+    name: Mock Charger Phase Store
     options:
       - "1 Phase"
       - "3 Phases"
+
+template:
+  - sensor:
+      # Household net power (negative = solar export)
+      - name: netto_verbruik_huis_lp
+        unique_id: mock_netto_verbruik_huis_lp
+        unit_of_measurement: "W"
+        device_class: power
+        state: "{{ states('input_number.mock_house_power') | int(0) }}"
+
+      # PV generation
+      - name: sma_power_w
+        unique_id: mock_sma_power_w
+        unit_of_measurement: "W"
+        device_class: power
+        state: "{{ states('input_number.mock_pv_power') | int(0) }}"
+
+      # Charger: measured active power output
+      - name: alfen_eve_real_power_sum
+        unique_id: mock_alfen_eve_real_power_sum
+        unit_of_measurement: "W"
+        device_class: power
+        state: "{{ states('input_number.mock_charger_power') | int(0) }}"
+
+      # Charger: applied current (mirrors the current output store)
+      - name: alfen_eve_actual_applied_max_current
+        unique_id: mock_alfen_eve_actual_applied_max_current
+        unit_of_measurement: "A"
+        device_class: current
+        state: "{{ states('input_number.mock_current_store') | float(0) }}"
+
+      # Charger: hardware maximum current
+      - name: alfen_eve_actual_max_current
+        unique_id: mock_alfen_eve_actual_max_current
+        unit_of_measurement: "A"
+        device_class: current
+        state: "{{ states('input_number.mock_charger_max_current') | int(16) }}"
+
+      # Charger: active phase setting (mirrors the phase output select)
+      - name: alfen_eve_charging_mode
+        unique_id: mock_alfen_eve_charging_mode
+        state: "{{ states('select.alfen_eve_usable_phases1') }}"
+
+      # Charger: IEC-61851 Mode 3 connection state
+      - name: alfen_eve_mode_3_state
+        unique_id: mock_alfen_eve_mode_3_state
+        state: "{{ states('input_select.mock_charger_state') }}"
+
+      # Car: predicted state of charge
+      - name: ix3_m_sport_battery_ev_predicted_state_of_charge
+        unique_id: mock_ix3_soc
+        unit_of_measurement: "%"
+        device_class: battery
+        state: "{{ states('input_number.mock_car_battery') | int(0) }}"
+
+  # Writable charger outputs the package controls.
+  - number:
+      - name: alfen_eve_max_current_limit_s1
+        unique_id: mock_alfen_eve_max_current_limit_s1
+        unit_of_measurement: "A"
+        min: 0
+        max: 32
+        step: 0.1
+        state: "{{ states('input_number.mock_current_store') | float(0) }}"
+        set_value:
+          - action: input_number.set_value
+            target:
+              entity_id: input_number.mock_current_store
+            data:
+              value: "{{ value }}"
+
+  - select:
+      - name: alfen_eve_usable_phases1
+        unique_id: mock_alfen_eve_usable_phases1
+        state: "{{ states('input_select.mock_charger_phases_store') }}"
+        options: "{{ ['1 Phase', '3 Phases'] }}"
+        select_option:
+          - action: input_select.select_option
+            target:
+              entity_id: input_select.mock_charger_phases_store
+            data:
+              option: "{{ option }}"

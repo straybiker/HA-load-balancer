@@ -46,7 +46,7 @@ template:
             {% if m3 in ['A', 'E'] %} Disconnected
             {% elif m3 in ['B1', 'B2', 'C1', 'D1', 'C2', 'D2'] %} Connected
             {% elif m3 in ['F'] %} Error
-            # {% else %} unavailable
+            {% else %} unavailable
             {% endif %}
 
       # Cars settings
@@ -82,4 +82,3 @@ template:
           emergency_soc: "{{ states('input_number.ev_load_balancer_emergency_soc') | int(20) }}"
           comfort_soc: "{{ states('input_number.ev_load_balancer_comfort_soc') | int(50) }}"
           target_soc: "{{ states('input_number.ev_load_balancer_target_soc') | int(80) }}"
-          pv_prio_threshold: "{{ states('input_number.ev_load_balancer_pv_prio_threshold') | int(0) }}"

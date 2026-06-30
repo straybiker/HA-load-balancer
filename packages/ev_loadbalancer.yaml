@@ -326,16 +326,8 @@ automation:
           selected_mode: "{{ states('sensor.ev_load_balancer') }}"
 
           # --- 2. CAR AWARE HARDWARE LIMITS ---
-          car_aware: >
-            {% set car_aware_flag = state_attr('sensor.ev_load_balancer', 'car_aware') | bool %}
-            {% if not car_aware_flag %} false
-            {% else %}
-              {% set required_sensors = [
-                state_attr('sensor.ev_load_balancer_car','battery_capacity_wh'),
-                state_attr('sensor.ev_load_balancer_car','battery_percentage')
-              ] %}
-              {{ required_sensors | select('in', ['unavailable', 'unknown', None, 'none', 'None', '']) | list | count == 0 }}
-            {% endif %}
+          car_aware: >-
+            {{ (state_attr('sensor.ev_load_balancer', 'car_aware') | bool) and (([state_attr('sensor.ev_load_balancer_car','battery_capacity_wh'), state_attr('sensor.ev_load_balancer_car','battery_percentage')] | select('in', ['unavailable', 'unknown', None, 'none', 'None', '']) | list | count) == 0) }}
 
           max_current: >
             {% set charger_max = state_attr('sensor.ev_load_balancer_charger', 'max_current') | int %}
@@ -370,8 +362,8 @@ automation:
           comfort_soc: "{{ state_attr('sensor.ev_load_balancer', 'comfort_soc') | int(50) }}"
           target_soc: "{{ state_attr('sensor.ev_load_balancer', 'target_soc') | int(80) }}"
 
-          # Safety Floor Overrides ALL EMS/Price rules
-          is_emergency: "{{ current_soc < emergency_soc }}"
+          # Safety Floor Overrides ALL EMS/Price rules (only when car data is trusted)
+          is_emergency: "{{ car_aware and current_soc < emergency_soc }}"
 
           # Target SOC Guard: stop charging when car_aware and SOC >= target
           target_reached: "{{ car_aware and current_soc >= target_soc }}"
@@ -400,8 +392,8 @@ automation:
             {% elif selected_mode == '3-Phases Minimum' %} {{ p_min_3 }}
             {% elif selected_mode == 'Fast' %} {{ p_fast }}
             {% elif selected_mode == 'Limited' %} {{ grid_power_limit }}
-            {% elif selected_mode == 'Comfort' %} 
-              {{ grid_power_limit if current_soc < comfort_soc else 0 }}
+            {% elif selected_mode == 'Comfort' %}
+              {{ grid_power_limit if (not car_aware or current_soc < comfort_soc) else 0 }}
             {% elif selected_mode == 'Solar' %} 0 {# Explicitly 0 Grid for Solar #}
             {% else %} 0
             {% endif %}
@@ -429,16 +421,17 @@ automation:
             {% set p_min_1 = (min_current | float) * (nominal_voltage | float) * 1 %}
             {% set allowed_grid_bridge = pv_prio_threshold | float(0) %}
             {% set base_surplus = -household_power %}
+            {% set pv_prio_active = (selected_mode == 'Limited' and pv_prioritized) %}
 
-            {% if base_surplus < p_min_1 | float %}
+            {% if pv_prio_active and base_surplus < (p_min_1 | float) %}
               {% set solar_surplus = [(base_surplus + allowed_grid_bridge), 0] | max %}
             {% else %}
-              {% set solar_surplus = base_surplus %}
+              {% set solar_surplus = [base_surplus, 0] | max %}
             {% endif %}
 
             {% if selected_mode == 'Off' %} 0
-            {% elif target_reached %} 0 
-            {% elif selected_mode == 'Limited' and pv_prioritized and solar_surplus > 0 %} {{ solar_surplus }}
+            {% elif target_reached %} 0
+            {% elif pv_prio_active and solar_surplus > 0 %} {{ solar_surplus }}
             {% else %} {{ effective_grid_w + solar_surplus }}
             {% endif %}
 
@@ -467,7 +460,7 @@ automation:
             {% endif %}
 
             {% set current_phase = 3 if states(state_attr('sensor.ev_load_balancer_charger','phases_output')) == phase_3 else 1 %}
-            {% if (desired_phase > current_phase and states('timer.ev_load_balancer_phase_switching_timer') == 'active') %}
+            {% if (desired_phase > current_phase and states('timer.ev_load_balancer_phase_switching_timer') == 'active' and selected_mode in ['Limited', 'Solar', 'Comfort']) %}
               {{ current_phase }}
             {% else %}
               {{ desired_phase }}
@@ -514,7 +507,7 @@ automation:
                 metadata: {}
                 data:
                   current: 0
-                  phase: "{{ state_attr('sensor.ev_load_balancer_charger','default_phases') }}"
+                  phase: "{{ adjusted_phase_selection }}"
                 target:
                   entity_id: script.ev_load_balancer_set_charger_params
 
@@ -568,6 +561,8 @@ automation:
       - condition: template
         value_template: >
           {{ states('sensor.ev_load_balancer') in ['Limited', 'Solar', 'Comfort'] }}
+      - condition: template
+        value_template: "{{ state_attr('sensor.ev_load_balancer_charger','connection_state') == 'Connected' }}"
     actions:
       - action: timer.start
         target:

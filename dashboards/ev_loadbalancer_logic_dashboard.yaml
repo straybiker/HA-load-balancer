@@ -280,8 +280,7 @@ views:
           | EMS active | {{ ems_active }} | {{ 'EMS participates' if ems_active else 'EMS ignored' }} |
           | EMS signal | {{ ems_signal_power }} W | {{ 'Allows grid charging' if signal_ok else 'Blocks grid charging' }} |
           | EMS as on/off | {{ ems_as_onoff }} | {{ 'Signal is binary' if ems_as_onoff else 'Signal is a watt budget' }} |
-          {% if car_aware %}
-          | Car SOC | {{ soc }} % | Emergency below {{ emergency_soc }} %, comfort below {{ comfort_soc }} %, stop at {{ target_soc }} % when car-aware |
+          {% if car_aware %}| Car SOC | {{ soc }} % | Emergency below {{ emergency_soc }} %, comfort below {{ comfort_soc }} %, stop at {{ target_soc }} % when car-aware |
           | Emergency override | {{ emergency }} | {{ 'Bypasses EMS/price and charges up to power limit' if emergency else 'Normal guard logic applies' }} |
           | Target reached | {{ target_reached }} | {{ 'Charging target reached' if target_reached else 'Target not reached or car-aware off' }} |
           {% else %}

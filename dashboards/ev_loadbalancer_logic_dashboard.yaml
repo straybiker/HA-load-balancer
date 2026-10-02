@@ -83,18 +83,21 @@ views:
           {% set pv_prioritized = state_attr('sensor.ev_load_balancer', 'pv_prioritized') | bool %}
           {% set pv_prio_threshold = state_attr('sensor.ev_load_balancer', 'pv_prio_threshold') | float(0) %}
           {% set base_surplus = -household_power %}
-          {% if base_surplus < p_min_1 %}
+          {% set pv_prio_active = selected_mode == 'Limited' and pv_prioritized %}
+          {% if pv_prio_active and base_surplus < p_min_1 %}
             {% set solar_surplus = [base_surplus + pv_prio_threshold, 0] | max %}
           {% else %}
-            {% set solar_surplus = base_surplus %}
+            {% set solar_surplus = [base_surplus, 0] | max %}
           {% endif %}
           {% if selected_mode == 'Off' %}
             {% set raw_target_power = 0 %}
-          {% elif ems_active and not ems_signal %}
-            {% set raw_target_power = 0 %}
+          {% elif is_emergency %}
+            {% set raw_target_power = effective_grid_w + solar_surplus %}
           {% elif target_reached %}
             {% set raw_target_power = 0 %}
-          {% elif selected_mode == 'Limited' and pv_prioritized and solar_surplus > 0 %}
+          {% elif ems_active and not ems_signal and not pv_prioritized and selected_mode != 'Solar' %}
+            {% set raw_target_power = 0 %}
+          {% elif pv_prio_active and solar_surplus > 0 %}
             {% set raw_target_power = solar_surplus %}
           {% else %}
             {% set raw_target_power = effective_grid_w + solar_surplus %}

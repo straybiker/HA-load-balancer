@@ -224,6 +224,19 @@ script:
                 - condition: template
                   value_template: >
                     {{ state_attr('sensor.ev_load_balancer_charger', 'phases_input') == phase or repeat.index >= max_delays }}
+      # The Alfen ignores some 0.1 A decreases and keeps the old current, which leaves
+      # the car ~70 W (3 phases) above target. A 0.2 A step is always accepted, so a
+      # 0.1 A decrease is written as 0.2 A, unless that goes below the minimum current.
+      - variables:
+          setcurrent: >
+            {% set current_value = states(state_attr('sensor.ev_load_balancer_charger','current_output')) | float(0) %}
+            {% set target_current = finalcurrent | float %}
+            {% set step = current_value - target_current %}
+            {% if target_current > 0 and 0 < step < 0.15 and (current_value - 0.2) >= min_current | float %}
+              {{ (current_value - 0.2) | round(1) }}
+            {% else %}
+              {{ target_current }}
+            {% endif %}
       # After phase change or if no phase change needed, set the final current
       # Set the final current if needed
       - if:
@@ -236,7 +249,7 @@ script:
               {% set phases = 3 if '3' in (phase|string) else 1 %}
               {% set current_threshold = power_threshold / (voltage * phases) %}
               {% set current_value = states(state_attr('sensor.ev_load_balancer_charger','current_output')) | float(0) %}
-              {% set target_current = finalcurrent | float %}
+              {% set target_current = setcurrent | float %}
 
               {# IF target is lower, ALWAYS reduce immediately. IF higher, require threshold. #}
               {{ (target_current < current_value) or ((target_current - current_value) >= current_threshold) }}
@@ -244,12 +257,12 @@ script:
           - action: system_log.write
             data:
               level: info
-              message: "[Pkg] Changing current from {{ state_attr('sensor.ev_load_balancer_charger', 'current_input') }} to {{ finalcurrent }}"
+              message: "[Pkg] Changing current from {{ state_attr('sensor.ev_load_balancer_charger', 'current_input') }} to {{ setcurrent }}"
           - action: number.set_value
             target:
               entity_id: "{{ state_attr('sensor.ev_load_balancer_charger','current_output') }}"
             data:
-              value: "{{ finalcurrent }}"
+              value: "{{ setcurrent }}"
           # Wait for current change to complete
           - variables:
               max_delays: 30
@@ -264,7 +277,7 @@ script:
                     {% set voltage = state_attr('sensor.ev_load_balancer_charger', 'nominal_voltage') | float(230) %}
                     {% set phases = 3 if '3' in (phase|string) else 1 %}
                     {% set current_threshold = power_threshold / (voltage * phases) %}
-                    {% set current_diff = (state_attr('sensor.ev_load_balancer_charger','current_input') | float(99) - finalcurrent | float) | abs %}
+                    {% set current_diff = (state_attr('sensor.ev_load_balancer_charger','current_input') | float(99) - setcurrent | float) | abs %}
                     {{ current_diff < current_threshold or repeat.index >= max_delays }}
     description: Set the charger current and phase
     fields:
@@ -313,6 +326,36 @@ automation:
       - condition: template
         value_template: "{{ not is_state('timer.ev_load_balancer_sensor_grace_period', 'active') }}"
     actions:
+      # --- 0. FAIL-SAFE ---
+      # Runs before the variables: they convert inputs with | int, which aborts
+      # the run on 'unavailable' and would leave the charger at its last current.
+      - if:
+          - condition: template
+            value_template: >
+              {% set base_sensors = [
+                states('sensor.ev_load_balancer_house'),
+                state_attr('sensor.ev_load_balancer_charger','current_input'),
+                state_attr('sensor.ev_load_balancer_charger','active_power'),
+                state_attr('sensor.ev_load_balancer_charger','phases_input'),
+              ] %}
+              {{ base_sensors | select('in', ['unavailable', 'unknown', None, 'none', 'None', '']) | list | count > 0 }}
+        then:
+          - action: system_log.write
+            data:
+              level: error
+              message: "[EV Load Balancer] Base sensors unavailable or invalid - fallback to default charger values."
+          # Never raise the current: a paused charger (0 A) stays paused instead
+          # of starting at the default current.
+          - action: script.ev_load_balancer_set_charger_params
+            metadata: {}
+            data:
+              current: >-
+                {{ [states(state_attr('sensor.ev_load_balancer_charger','current_output')) | float(0),
+                    state_attr('sensor.ev_load_balancer_charger','default_current') | float(0)] | min }}
+              phase: "{{ state_attr('sensor.ev_load_balancer_charger','default_phases') }}"
+            target:
+              entity_id: script.ev_load_balancer_set_charger_params
+          - stop: Base sensors unavailable
       - variables:
           # --- 1. SENSOR STATES WITH ATTRIBUTES ---
           household_power: "{{ states('sensor.ev_load_balancer_house') | int }}"
@@ -430,7 +473,12 @@ automation:
             {% endif %}
 
             {% if selected_mode == 'Off' %} 0
+            {# The emergency floor overrides the EMS gate and every mode rule except Off. #}
+            {% elif is_emergency %} {{ effective_grid_w + solar_surplus }}
             {% elif target_reached %} 0
+            {# EMS gives 0 W: charge on solar only when PV priority is on, otherwise stop. #}
+            {# Solar mode never uses the grid, so it keeps charging on solar. #}
+            {% elif ems_active and (not ems_signal) and not (pv_prioritized | bool) and selected_mode != 'Solar' %} 0
             {% elif pv_prio_active and solar_surplus > 0 %} {{ solar_surplus }}
             {% else %} {{ effective_grid_w + solar_surplus }}
             {% endif %}
@@ -474,30 +522,8 @@ automation:
             {% endif %}
 
       # --- 9. EXECUTION LOGIC ---
+      # The unavailable-sensor fallback runs first, in step 0.
       - choose:
-          - conditions:
-              - condition: template
-                value_template: >
-                  {% set base_sensors = [
-                    states('sensor.ev_load_balancer_house'),
-                    state_attr('sensor.ev_load_balancer_charger','current_input'),
-                    state_attr('sensor.ev_load_balancer_charger','active_power'),
-                    state_attr('sensor.ev_load_balancer_charger','phases_input'),
-                  ] %}
-                  {{ base_sensors | select('in', ['unavailable', 'unknown', None, 'none', 'None', '']) | list | count > 0 }}
-            sequence:
-              - action: system_log.write
-                data:
-                  level: error
-                  message: "[EV Load Balancer] Base sensors unavailable or invalid - fallback to default charger values."
-              - action: script.ev_load_balancer_set_charger_params
-                metadata: {}
-                data:
-                  current: "{{ state_attr('sensor.ev_load_balancer_charger','default_current') }}"
-                  phase: "{{ state_attr('sensor.ev_load_balancer_charger','default_phases') }}"
-                target:
-                  entity_id: script.ev_load_balancer_set_charger_params
-
           - conditions:
               # Catch Off modes and scenarios where Profit/EMS blocked grid AND there is zero sun
               - condition: template

@@ -199,7 +199,7 @@ The available charge modes dictate how the car charges based on solar availabili
 | **Off** | Charging disabled. |
 | **1-Phase Minimum** | Requests single-phase charging at minimum current (e.g. 6A = ~1.4 kW). Still capped by the configured `power_limit`; if there is not enough headroom, charging stops. |
 | **3-Phases Minimum** | Requests three-phase charging at minimum current (e.g. 6A = ~4.1 kW). Still capped by the configured `power_limit`; if there is not enough headroom, charging stops instead of falling back to 1 phase. |
-| **Fast** | Requests maximum rated current, then clips the final charger output to the remaining headroom under `power_limit`. EMS can block grid usage, forcing solar-only charging if active. |
+| **Fast** | Requests maximum rated current, then clips the final charger output to the remaining headroom under `power_limit`. EMS can block grid usage: the car then charges on solar only when `pv_prioritized` is ON, otherwise it stops. |
 | **Limited** | Dynamic power limiting based on household consumption up to `power_limit`. EMS signal is used to cap or block grid usage. |
 | **Solar** | Charges only on solar surplus. Grid is never used, regardless of EMS or price. |
 | **Comfort** | Hybrid mode: behaves as **Limited** while SOC is below `comfort_soc`, then switches to **Solar** once the minimum SOC is reached. |
@@ -253,15 +253,15 @@ How modes interact with PV Priority and EMS signals:
 | **Solar** | *Any* | *Any* | *Any* | **Solar Only**: Charges strictly on solar surplus. Grid is never used. |
 | **Fast** | *Any* | OFF | - | **Max Power Request**: Requests maximum capacity (e.g. 11kW), then the final `power_limit` cap is applied. |
 | | | ON | ON (>0W) | **Max Power Request**: EMS Budget is ignored (treated as binary "Go"), then the final `power_limit` cap is applied. |
-| | | ON | OFF (0W)| **Solar Only**: Grid blocked by EMS. Charges only if solar surplus exists. |
+| | | ON | OFF (0W)| **PV Prio ON**: Solar only, grid blocked by EMS.<br>**PV Prio OFF**: Charging stops. |
 | **Limited**| OFF | OFF | - | **Max Grid**: Charges up to `power_limit` + Solar Surplus. |
 | | | ON | ON (>0W) | **Optimized Grid**: <br>• **Budget Mode**: Grid limit = `ems_signal`.<br>• **On/Off Mode**: Grid limit = `power_limit`.<br>Solar surplus is added on *top* of this limit (Turbo). |
-| | | ON | OFF (0W)| **Solar Only**: Grid blocked. Charges only on solar surplus. |
-| **Limited**| ON | *Any* | *Any* | **Solar Priority**:<br>• **Sun > 0**: Follows **Solar Only** behavior (ignores Grid/EMS).<br>• **No Sun**: Follows standard **Limited** behavior (see above). |
+| | | ON | OFF (0W)| **Stop**: Charging stops (PV Prio is OFF in this row). |
+| **Limited**| ON | *Any* | *Any* | **Solar Priority**:<br>• **Sun > 0**: Follows **Solar Only** behavior (ignores Grid/EMS).<br>• **No Sun**: Follows standard **Limited** behavior (see above).<br>• **EMS 0W**: Solar only. |
 | **Comfort**| *Any* | *Any* | *Any* | **Hybrid**:<br>• **SOC < comfort_soc**: Behaves like **Limited** (Ensures charge).<br>• **SOC ≥ comfort_soc**: Behaves like **Solar** (Saves money). |
 
 #### EMS Configuration Highlights
-1. **EMS Signal**: Define `ems_signal` in `ev_loadbalancer_user_config.yaml`. A value of `0` blocks grid usage while still allowing solar surplus charging.
+1. **EMS Signal**: Define `ems_signal` in `ev_loadbalancer_user_config.yaml`. A value of `0` blocks grid usage. With `pv_prioritized` ON the car still charges on solar surplus; with it OFF, charging stops. **Solar** mode always charges on solar surplus.
 2. **Control Toggle**: Turn `input_boolean.ev_load_balancer_ems_control` **ON** to enable EMS gating.
 3. **Mode Toggle** (Optional): `input_boolean.ev_load_balancer_ems_as_onoff` (`false` = Budget Mode, `true` = Binary on/off Mode).
 
@@ -320,7 +320,7 @@ These attributes are wired to `input_*` helpers that the package defines. They a
 |---|---|---|---|
 | `power_limit` | `input_number.ev_load_balancer_power_limit` | W | Maximum total power (household + charging) allowed. |
 | `car_aware` | `input_boolean.ev_load_balancer_car_aware` | bool | Enable car-aware mode. When enabled, the car's SOC and current limits are respected. |
-| `pv_prioritized` | `input_boolean.ev_load_balancer_pv_prioritized` | bool | Solar-first priority for **Limited** mode. |
+| `pv_prioritized` | `input_boolean.ev_load_balancer_pv_prioritized` | bool | Solar-first priority for **Limited** mode. With EMS control ON and an EMS signal of `0`, it also decides if the car charges on solar surplus (ON) or stops (OFF), in every mode except **Solar**. |
 | `pv_prio_threshold` | `input_number.ev_load_balancer_pv_prio_threshold` | W | Threshold for solar-first priority. How much grid power may be added to bridge the gap between 0W and the minimum power required to charge, preventing 1000W or more of solar from going to waste. Only applies to **Limited** mode with `pv_prioritized` enabled. |
 | `single_phase_only` | `input_boolean.ev_load_balancer_single_phase_only` | bool | Force all modes to single-phase. |
 | `ems_control` | `input_boolean.ev_load_balancer_ems_control` | bool | Master switch to activate EMS gating. |
@@ -341,7 +341,7 @@ These attributes must be set in `ev_loadbalancer_user_config.yaml` to match your
 |---|---|---|
 | `power_update_threshold` | W | *[Optional]* Minimum power change before updating the charger. Prevents excessive updates. Defaults to `230 W`. |
 | `phase_switch_delay` | min | *[Optional]* Cooldown after switching 3→1 phase before allowing switch back. Defaults to `5 min`. |
-| `ems_signal` | W | *[Optional]* EMS power budget in Watts. Point to a sensor such as an EMHASS deferrable output. `0` blocks grid usage while still allowing solar surplus charging. |
+| `ems_signal` | W | *[Optional]* EMS power budget in Watts. Point to a sensor such as an EMHASS deferrable output. `0` blocks grid usage; solar surplus charging continues only when `pv_prioritized` is ON (or in **Solar** mode). |
 | `electricity_price` | €/kWh | *[Optional]* Current electricity price sensor. Used with `max_cost_rate` to block grid charging when expensive. Omit or set to `0` to disable. |
 
 ---
@@ -443,7 +443,7 @@ entities:
 ## Advanced Features
 
 ### PV Optimization for Modes Limited, Solar and Comfort
-- `pv_prioritized` is only applicable to **Limited** mode. When enabled, the car charges on solar surplus if available. If solar is insufficient, grid power fills up to `power_limit`. This is useful to maximize self-consumption while guaranteeing the car is charged.
+- `pv_prioritized` mainly applies to **Limited** mode (it also sets the EMS `0` W behavior, see above). When enabled, the car charges on solar surplus if available. If solar is insufficient, grid power fills up to `power_limit`. This is useful to maximize self-consumption while guaranteeing the car is charged.
   - When solar surplus exists but is just below the minimum charge power, `pv_prio_threshold` allows a small amount of grid power to bridge the gap so that surplus is not wasted. With `pv_prio_threshold` set to `0`, priority mode is strictly solar-only.
 - With **Solar** charging, only remaining solar power is used. If this is not enough to charge the car, charging stops. Useful when the car only needs a small top-up or is connected for an extended period.
 - In **Comfort** mode, the system behaves as **Limited** when the current SOC is below `comfort_soc`, and as **Solar** once it exceeds it. This is *not* the same as Limited with `pv_prioritized` enabled. In Comfort, charging stops once the minimum SOC is reached, while in Limited it continues until the car is fully charged.

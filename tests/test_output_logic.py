@@ -96,16 +96,19 @@ TEMPLATE_STRING = """
 {% set p_min_1 = (min_current | float) * (nominal_voltage | float) * 1 %}
 {% set allowed_grid_bridge = pv_prio_threshold | float(0) %}
 {% set base_surplus = -household_power %}
+{% set pv_prio_active = (selected_mode == 'Limited' and pv_prioritized) %}
 
-{% if base_surplus < p_min_1 | float %}
+{% if pv_prio_active and base_surplus < (p_min_1 | float) %}
   {% set solar_surplus = [(base_surplus + allowed_grid_bridge), 0] | max %}
 {% else %}
-  {% set solar_surplus = base_surplus %}
+  {% set solar_surplus = [base_surplus, 0] | max %}
 {% endif %}
 
 {% if selected_mode == 'Off' %} {% set raw_target_power = 0 %}
+{% elif is_emergency %} {% set raw_target_power = effective_grid_w + solar_surplus %}
 {% elif target_reached %} {% set raw_target_power = 0 %}
-{% elif selected_mode == 'Limited' and pv_prioritized and solar_surplus > 0 %} {% set raw_target_power = solar_surplus %}
+{% elif ems_active and (not ems_signal) and not (pv_prioritized | bool) and selected_mode != 'Solar' %} {% set raw_target_power = 0 %}
+{% elif pv_prio_active and solar_surplus > 0 %} {% set raw_target_power = solar_surplus %}
 {% else %} {% set raw_target_power = effective_grid_w + solar_surplus %}
 {% endif %}
 
@@ -263,6 +266,48 @@ def run_tests():
             "setup": lambda db: db.update({"sensor.ev_load_balancer": "Solar", "sensor.ev_load_balancer_house": "-6000"}),
             "expected_phase": 3,
             "expected_current": 8.6 # 6000/690 = 8.69 -> 8.7 (We will check math below)
+        },
+        {
+            "name": "EMS 0 W, PV priority off: Limited mode blocks solar",
+            "setup": lambda db: db.update({"sensor.ev_load_balancer": "Limited", "sensor.ev_load_balancer_house": "-6000"}),
+            "attrs": {"ems_control": True, "ems_signal": 0.0, "pv_prioritized": False},
+            "expected_phase": 1,
+            "expected_current": 0.0
+        },
+        {
+            "name": "EMS 0 W, PV priority on: Limited mode charges on solar",
+            "setup": lambda db: db.update({"sensor.ev_load_balancer": "Limited", "sensor.ev_load_balancer_house": "-6000"}),
+            "attrs": {"ems_control": True, "ems_signal": 0.0, "pv_prioritized": True},
+            "expected_phase": 3,
+            "expected_current": 8.6 # 6000/690
+        },
+        {
+            "name": "EMS 0 W, PV priority off: Fast mode blocks solar",
+            "setup": lambda db: db.update({"sensor.ev_load_balancer": "Fast", "sensor.ev_load_balancer_house": "-6000"}),
+            "attrs": {"ems_control": True, "ems_signal": 0.0, "pv_prioritized": False},
+            "expected_phase": 1,
+            "expected_current": 0.0
+        },
+        {
+            "name": "EMS 0 W, PV priority on: Fast mode charges on solar",
+            "setup": lambda db: db.update({"sensor.ev_load_balancer": "Fast", "sensor.ev_load_balancer_house": "-6000"}),
+            "attrs": {"ems_control": True, "ems_signal": 0.0, "pv_prioritized": True},
+            "expected_phase": 3,
+            "expected_current": 8.6
+        },
+        {
+            "name": "EMS 0 W, PV priority off: Solar mode still charges on solar",
+            "setup": lambda db: db.update({"sensor.ev_load_balancer": "Solar", "sensor.ev_load_balancer_house": "-6000"}),
+            "attrs": {"ems_control": True, "ems_signal": 0.0, "pv_prioritized": False},
+            "expected_phase": 3,
+            "expected_current": 8.6
+        },
+        {
+            "name": "EMS 3 kW budget, PV priority off: Limited mode uses budget + solar",
+            "setup": lambda db: db.update({"sensor.ev_load_balancer": "Limited", "sensor.ev_load_balancer_house": "-1000"}),
+            "attrs": {"ems_control": True, "ems_signal": 3000.0, "pv_prioritized": False},
+            "expected_phase": 1,
+            "expected_current": 16.0 # 4000 W < 3-phase minimum (4140 W): 1 phase, 4000/230 = 17.4 A capped at 16 A
         }
     ]
 
@@ -289,6 +334,7 @@ def run_tests():
                 "target_soc": 80, "pv_prioritized": False, "pv_prio_threshold": 0,
                 "single_phase_only": False
             }
+            db["sensor.ev_load_balancer"].update(t.get("attrs", {}))
             db["sensor.ev_load_balancer_state"] = mode
 
         res = evaluate_output(db)

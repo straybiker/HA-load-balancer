@@ -14,6 +14,9 @@ template:
       # Household settings
       - unique_id: ev_load_balancer_house
         name: EV Load Balancer House
+        # Unavailable input must stay unavailable, so the balancer's fail-safe
+        # triggers instead of charging against a fake 0 W household load.
+        availability: "{{ has_value('sensor.netto_verbruik_huis_lp') }}"
         state: "{{ states('sensor.netto_verbruik_huis_lp') | int(0) }}"
         icon: mdi:home-lightning-bolt
         device_class: power

@@ -197,11 +197,11 @@ The available charge modes dictate how the car charges based on solar availabili
 | Mode | Description |
 |---|---|
 | **Off** | Charging disabled. |
-| **1-Phase Minimum** | Requests single-phase charging at minimum current (e.g. 6A = ~1.4 kW). Still capped by the configured `power_limit`; if there is not enough headroom, charging stops. |
-| **3-Phases Minimum** | Requests three-phase charging at minimum current (e.g. 6A = ~4.1 kW). Still capped by the configured `power_limit`; if there is not enough headroom, charging stops instead of falling back to 1 phase. |
-| **Fast** | Requests maximum rated current, then clips the final charger output to the remaining headroom under `power_limit`. EMS can block grid usage: the car then charges on solar only when `pv_prioritized` is ON, otherwise it stops. |
+| **1-Phase Minimum** | Requests single-phase charging at minimum current (e.g. 6A = ~1.4 kW). Still capped by the configured `power_limit`; if there is not enough headroom, charging stops. When EMS control is ON, the EMS budget caps the grid share and an EMS signal of 0 W stops charging. |
+| **3-Phases Minimum** | Requests three-phase charging at minimum current (e.g. 6A = ~4.1 kW). Still capped by the configured `power_limit`; if there is not enough headroom, charging stops instead of falling back to 1 phase. When EMS control is ON, the EMS budget caps the grid share and an EMS signal of 0 W stops charging. |
+| **Fast** | Requests maximum rated current, then clips the final charger output to the remaining headroom under `power_limit`. When EMS control is ON, the EMS budget caps the grid share. EMS can block grid usage: the car then charges on solar only when `pv_prioritized` is ON, otherwise it stops. |
 | **Limited** | Dynamic power limiting based on household consumption up to `power_limit`. EMS signal is used to cap or block grid usage. |
-| **Solar** | Charges only on solar surplus. Grid is never used, regardless of EMS or price. |
+| **Solar** | Charges only on solar surplus. Grid is never used, regardless of EMS or price. Exception: below `emergency_soc` (car-aware only) the emergency floor charges from the grid up to `power_limit`. |
 | **Comfort** | Hybrid mode: behaves as **Limited** while SOC is below `comfort_soc`, then switches to **Solar** once the minimum SOC is reached. |
 
 ### Logic Decision Flow
@@ -250,9 +250,12 @@ How modes interact with PV Priority and EMS signals:
 
 | Mode | PV Prio | EMS Control | EMS Signal | Resulting Behavior |
 | :--- | :--- | :--- | :--- | :--- |
-| **Solar** | *Any* | *Any* | *Any* | **Solar Only**: Charges strictly on solar surplus. Grid is never used. |
+| **Solar** | *Any* | *Any* | *Any* | **Solar Only**: Charges strictly on solar surplus. Grid is only used below `emergency_soc`, where the emergency floor overrides every mode except Off. |
 | **Fast** | *Any* | OFF | - | **Max Power Request**: Requests maximum capacity (e.g. 11kW), then the final `power_limit` cap is applied. |
-| | | ON | ON (>0W) | **Max Power Request**: EMS Budget is ignored (treated as binary "Go"), then the final `power_limit` cap is applied. |
+| | | ON | ON (>0W) | **EMS-limited Request**: <br>• **Budget Mode**: Grid share = `ems_signal`, solar surplus on top.<br>• **On/Off Mode**: Maximum capacity.<br>The final `power_limit` cap is applied after. |
+| | | ON | OFF (0W)| **PV Prio ON**: Solar only, grid blocked by EMS.<br>**PV Prio OFF**: Charging stops. |
+| **1-Phase / 3-Phases Minimum** | *Any* | OFF | - | **Minimum Request**: Minimum current on the forced phase count, then the final `power_limit` cap is applied. |
+| | | ON | ON (>0W) | **Budget Mode**: Grid share = the lower of the minimum power and `ems_signal`; below the minimum current charging stops.<br>**On/Off Mode**: Minimum Request. |
 | | | ON | OFF (0W)| **PV Prio ON**: Solar only, grid blocked by EMS.<br>**PV Prio OFF**: Charging stops. |
 | **Limited**| OFF | OFF | - | **Max Grid**: Charges up to `power_limit` + Solar Surplus. |
 | | | ON | ON (>0W) | **Optimized Grid**: <br>• **Budget Mode**: Grid limit = `ems_signal`.<br>• **On/Off Mode**: Grid limit = `power_limit`.<br>Solar surplus is added on *top* of this limit (Turbo). |
@@ -262,7 +265,7 @@ How modes interact with PV Priority and EMS signals:
 
 #### EMS Configuration Highlights
 1. **EMS Signal**: Define `ems_signal` in `ev_loadbalancer_user_config.yaml`. A value of `0` blocks grid usage. With `pv_prioritized` ON the car still charges on solar surplus; with it OFF, charging stops. **Solar** mode always charges on solar surplus.
-2. **Control Toggle**: Turn `input_boolean.ev_load_balancer_ems_control` **ON** to enable EMS gating.
+2. **Control Toggle**: Turn `input_boolean.ev_load_balancer_ems_control` **ON** to enable EMS gating. When it is ON, EMS is in control of every mode that can use the grid: Limited, Comfort, Fast, 1-Phase Minimum and 3-Phases Minimum. Only Off, Solar (which never uses the grid) and the emergency SOC floor are outside EMS control.
 3. **Mode Toggle** (Optional): `input_boolean.ev_load_balancer_ems_as_onoff` (`false` = Budget Mode, `true` = Binary on/off Mode).
 
 #### Time-of-use EMS Budget Example
@@ -326,7 +329,7 @@ These attributes are wired to `input_*` helpers that the package defines. They a
 | `ems_control` | `input_boolean.ev_load_balancer_ems_control` | bool | Master switch to activate EMS gating. |
 | `ems_as_onoff` | `input_boolean.ev_load_balancer_ems_as_onoff` | bool | `false` = Budget mode; `true` = Binary on/off mode. |
 | `max_cost_rate` | `input_number.ev_max_charging_cost` | €/kWh | Maximum electricity price at which grid charging is allowed. |
-| `emergency_soc` | `input_number.ev_load_balancer_emergency_soc` | % | SOC floor - below this, EMS/price/target behavior is bypassed and charging is requested up to `power_limit`. Default `20%`. |
+| `emergency_soc` | `input_number.ev_load_balancer_emergency_soc` | % | *(car_aware only)* SOC floor - below this, EMS/price/target behavior is bypassed and charging is requested up to `power_limit`. Default `20%`. |
 | `target_soc` | `input_number.ev_load_balancer_target_soc` | % | *(car_aware only)* Target SOC ceiling — charging stops when this SOC is reached. Emergency SOC floor still overrides. Default `80%`. |
 | `comfort_soc` | `input_number.ev_load_balancer_comfort_soc` | % | Comfort mode minimum SOC. Below this, Comfort acts as Limited; above, it switches to Solar. Default `50%`. |
 
@@ -404,12 +407,12 @@ Car configuration is optional and only needed when `car_aware` is enabled. The s
 
 | Attribute | Helper | Scope | Priority | Purpose |
 |---|---|---|---|---|
-| `emergency_soc` | `input_number.ev_load_balancer_emergency_soc` | All modes | **Highest** | Safety floor - bypasses EMS/price/target behavior and requests charging up to `power_limit`. |
+| `emergency_soc` | `input_number.ev_load_balancer_emergency_soc` | All modes except Off (car_aware only) | **Highest** | Safety floor - bypasses EMS/price/target behavior and requests charging up to `power_limit`. |
 | `target_soc` | `input_number.ev_load_balancer_target_soc` | All modes (car_aware only) | High | Charging ceiling — stops all charging (including solar surplus) once reached. Emergency SOC overrides this. |
 | `comfort_soc` | `input_number.ev_load_balancer_comfort_soc` | Comfort mode only | Normal | Minimum SOC for Comfort mode. Below → Limited behaviour. Above → Solar behaviour. |
 
 > [!NOTE]
-> The price guard (`electricity_price` vs `max_cost_rate`) is bypassed when SOC is below `emergency_soc`. `target_soc` only takes effect when `car_aware` is enabled and the car's SOC sensors are available and valid.
+> The price guard (`electricity_price` vs `max_cost_rate`) is bypassed when SOC is below `emergency_soc`. All three SOC settings (`emergency_soc`, `target_soc`, `comfort_soc`) only take effect when `car_aware` is enabled and the car's SOC sensors are available and valid. With `car_aware` off, Comfort mode behaves as Limited.
 
 ---
 
@@ -533,7 +536,7 @@ The use of this automation is at your own risk. The author assumes no responsibi
 5. **EMS Not Having Any Effect**
    - Verify `input_boolean.ev_load_balancer_ems_control` is turned **ON**.
    - Confirm `ems_signal` in the user config is resolving to a numeric float value (check with Developer Tools > Template).
-   - EMS only affects **Limited**, **Comfort**, and **Fast** modes; Solar mode always ignores EMS.
+   - EMS affects every mode that can use the grid: **Limited**, **Comfort**, **Fast**, **1-Phase Minimum** and **3-Phases Minimum**. **Solar** mode never uses the grid, so EMS has no effect there. Below `emergency_soc`, the emergency floor overrides EMS.
 
 ### Debug Logging
 To enable automation trace logging for the load balancer automation, enable trace storage in the automation settings (default 90 traces are stored). You can also check the Home Assistant log for `[EV Load Balancer]` and `[Pkg]` prefixed messages.

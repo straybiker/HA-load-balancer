@@ -7,7 +7,7 @@ A car charging load balancer for Home Assistant tailored to Belgian energy regul
 
 > [!IMPORTANT]
 > **This project continues as a Home Assistant integration: [HA EV Charge Control](https://github.com/straybiker/HA-EV-Charge-Control).**
-> v4.4.0 is the final release of this YAML package. The package keeps working, but it gets no new features. The integration is in beta.
+> v4.4.0 is the final release of this YAML package. The package keeps working, but it gets no new features.
 
 ## Table of Contents
 - [Introduction](#introduction)
